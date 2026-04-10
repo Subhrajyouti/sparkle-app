@@ -181,9 +181,12 @@ export default function Dashboard() {
 
   const updateAssignmentStatus = async (newStatus: "picked_up" | "delivered") => {
     if (!activeAssignment) return;
-    const updateData: Record<string, string> = { status: newStatus, updated_at: new Date().toISOString() };
-    if (newStatus === "picked_up") updateData.picked_up_at = new Date().toISOString();
-    if (newStatus === "delivered") updateData.delivered_at = new Date().toISOString();
+    const updateData = {
+      status: newStatus,
+      updated_at: new Date().toISOString(),
+      ...(newStatus === "picked_up" ? { picked_up_at: new Date().toISOString() } : {}),
+      ...(newStatus === "delivered" ? { delivered_at: new Date().toISOString() } : {}),
+    };
 
     const { error } = await supabase
       .from("delivery_assignments")

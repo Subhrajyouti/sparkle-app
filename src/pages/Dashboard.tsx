@@ -415,7 +415,7 @@ export default function Dashboard() {
             {activeAssignment.status === "accepted" && (
               <Button
                 onClick={() => updateAssignmentStatus("picked_up")}
-                className="w-full h-12 text-base font-semibold gap-2 bg-blue-600 hover:bg-blue-700"
+                className="w-full h-12 text-base font-semibold gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"
               >
                 <Bike className="w-5 h-5" />
                 Mark Picked Up

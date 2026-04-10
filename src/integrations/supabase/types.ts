@@ -315,10 +315,12 @@ export type Database = {
           delivery_partner_id: string
           id: string
           notes: string | null
+          payment_mode: string
           picked_up_at: string | null
           status: string
           total_cash_to_collect: number
           updated_at: string
+          upi_screenshot_path: string | null
         }
         Insert: {
           assigned_at?: string
@@ -328,10 +330,12 @@ export type Database = {
           delivery_partner_id: string
           id?: string
           notes?: string | null
+          payment_mode?: string
           picked_up_at?: string | null
           status?: string
           total_cash_to_collect?: number
           updated_at?: string
+          upi_screenshot_path?: string | null
         }
         Update: {
           assigned_at?: string
@@ -341,10 +345,12 @@ export type Database = {
           delivery_partner_id?: string
           id?: string
           notes?: string | null
+          payment_mode?: string
           picked_up_at?: string | null
           status?: string
           total_cash_to_collect?: number
           updated_at?: string
+          upi_screenshot_path?: string | null
         }
         Relationships: [
           {

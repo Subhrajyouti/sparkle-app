@@ -170,11 +170,11 @@ export default function Dashboard() {
 
   const updateAssignmentStatus = async (newStatus: "accepted" | "picked_up") => {
     if (!activeAssignment) return;
-    const updateData: Record<string, string> = {
+    const updateData = {
       status: newStatus,
       updated_at: new Date().toISOString(),
+      ...(newStatus === "picked_up" ? { picked_up_at: new Date().toISOString() } : {}),
     };
-    if (newStatus === "picked_up") updateData.picked_up_at = new Date().toISOString();
 
     const { error } = await supabase
       .from("delivery_assignments")

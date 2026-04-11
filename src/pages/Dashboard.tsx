@@ -32,6 +32,8 @@ interface KitchenOrder {
   total_amount: number;
   notes: string | null;
   items: KitchenOrderItem[];
+  dao_id: string; // delivery_assignment_orders id
+  dao_status: string; // per-order status: pending | delivered
 }
 
 interface Assignment {

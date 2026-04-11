@@ -55,6 +55,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [toggling, setToggling] = useState(false);
+  const [paymentOrderDaoId, setPaymentOrderDaoId] = useState<string | null>(null);
   const [paymentAssignmentId, setPaymentAssignmentId] = useState<string | null>(null);
   const [upiScreenshot, setUpiScreenshot] = useState<File | null>(null);
   const [upiPreview, setUpiPreview] = useState<string | null>(null);

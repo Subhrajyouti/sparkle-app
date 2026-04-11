@@ -521,12 +521,12 @@ export default function Dashboard() {
       </div>
 
       {/* Payment Mode Modal */}
-      {paymentAssignmentId && (
+      {paymentOrderDaoId && paymentAssignmentId && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
           <div className="bg-card w-full max-w-md rounded-t-2xl p-6 space-y-5 animate-in slide-in-from-bottom">
             <div className="flex items-center justify-between">
               <h3 className="font-heading font-bold text-lg text-foreground">Payment Method</h3>
-              <button onClick={() => { setPaymentAssignmentId(null); setUpiScreenshot(null); setUpiPreview(null); }}>
+              <button onClick={() => { setPaymentOrderDaoId(null); setPaymentAssignmentId(null); setUpiScreenshot(null); setUpiPreview(null); }}>
                 <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>

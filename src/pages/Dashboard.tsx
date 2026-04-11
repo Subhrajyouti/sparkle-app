@@ -533,7 +533,7 @@ export default function Dashboard() {
             <p className="text-sm text-muted-foreground">How did the customer pay?</p>
 
             <Button
-              onClick={() => submitDelivery(paymentAssignmentId, "cash")}
+              onClick={() => submitDelivery(paymentOrderDaoId!, paymentAssignmentId!, "cash")}
               disabled={submitting}
               className="w-full h-12 text-base font-semibold gap-2"
               variant="outline"
@@ -576,7 +576,7 @@ export default function Dashboard() {
               )}
 
               <Button
-                onClick={() => submitDelivery(paymentAssignmentId, "upi")}
+                onClick={() => submitDelivery(paymentOrderDaoId!, paymentAssignmentId!, "upi")}
                 disabled={submitting || !upiScreenshot}
                 className="w-full h-12 text-base font-semibold gap-2 bg-success hover:bg-success/90"
               >

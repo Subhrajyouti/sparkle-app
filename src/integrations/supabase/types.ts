@@ -637,6 +637,7 @@ export type Database = {
           created_at: string
           customer_name: string
           customer_phone: string
+          delivery_partner_id: string | null
           id: string
           location_lat: number | null
           location_lng: number | null
@@ -652,6 +653,7 @@ export type Database = {
           created_at?: string
           customer_name: string
           customer_phone: string
+          delivery_partner_id?: string | null
           id?: string
           location_lat?: number | null
           location_lng?: number | null
@@ -667,6 +669,7 @@ export type Database = {
           created_at?: string
           customer_name?: string
           customer_phone?: string
+          delivery_partner_id?: string | null
           id?: string
           location_lat?: number | null
           location_lng?: number | null
@@ -677,7 +680,15 @@ export type Database = {
           total_amount?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "kitchen_orders_delivery_partner_id_fkey"
+            columns: ["delivery_partner_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_partners"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       menu_item_ingredients: {
         Row: {

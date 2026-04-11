@@ -443,11 +443,32 @@ export default function Dashboard() {
                           Note: {order.notes}
                         </p>
                       )}
+
+                      {/* Per-order deliver button (only when picked_up and not yet delivered) */}
+                      {assignment.status === "picked_up" && order.dao_status !== "delivered" && (
+                        <Button
+                          onClick={() => {
+                            setPaymentOrderDaoId(order.dao_id);
+                            setPaymentAssignmentId(assignment.id);
+                          }}
+                          size="sm"
+                          className="w-full h-9 text-xs font-semibold gap-1.5 bg-success hover:bg-success/90"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Mark Delivered
+                        </Button>
+                      )}
+                      {assignment.status === "picked_up" && order.dao_status === "delivered" && (
+                        <div className="flex items-center gap-1.5 text-xs text-success font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Delivered
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
 
-                {/* Action button per assignment */}
+                {/* Action button per assignment - Accept & Pickup only */}
                 <div className="px-4 pb-4 pt-1">
                   {assignment.status === "pending" && (
                     <Button
@@ -467,15 +488,6 @@ export default function Dashboard() {
                     >
                       <Bike className="w-4 h-4" />
                       {updatingId === assignment.id ? "Updating..." : "Mark Picked Up"}
-                    </Button>
-                  )}
-                  {assignment.status === "picked_up" && (
-                    <Button
-                      onClick={() => setPaymentAssignmentId(assignment.id)}
-                      className="w-full h-11 text-sm font-semibold gap-2 bg-success hover:bg-success/90"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      Mark Delivered
                     </Button>
                   )}
                 </div>

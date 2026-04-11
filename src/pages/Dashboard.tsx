@@ -32,6 +32,8 @@ interface KitchenOrder {
   total_amount: number;
   notes: string | null;
   items: KitchenOrderItem[];
+  dao_id: string; // delivery_assignment_orders id
+  dao_status: string; // per-order status: pending | delivered
 }
 
 interface Assignment {
@@ -53,6 +55,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [toggling, setToggling] = useState(false);
+  const [paymentOrderDaoId, setPaymentOrderDaoId] = useState<string | null>(null);
   const [paymentAssignmentId, setPaymentAssignmentId] = useState<string | null>(null);
   const [upiScreenshot, setUpiScreenshot] = useState<File | null>(null);
   const [upiPreview, setUpiPreview] = useState<string | null>(null);
@@ -78,7 +81,7 @@ export default function Dashboard() {
 
       const { data: allAssignmentOrders } = await supabase
         .from("delivery_assignment_orders")
-        .select("id, assignment_id, kitchen_order_id")
+        .select("id, assignment_id, kitchen_order_id, status, delivered_at")
         .in("assignment_id", assignmentIds);
 
       if (!allAssignmentOrders || allAssignmentOrders.length === 0) {
@@ -113,6 +116,8 @@ export default function Dashboard() {
             total_amount: ko?.total_amount || 0,
             notes: ko?.notes || null,
             items,
+            dao_id: ao.id,
+            dao_status: (ao as any).status || "pending",
           };
         });
         return { ...assignment, orders } as Assignment;
@@ -212,13 +217,13 @@ export default function Dashboard() {
     }
   };
 
-  const submitDelivery = async (assignmentId: string, paymentMode: "cash" | "upi") => {
+  const submitDelivery = async (daoId: string, assignmentId: string, paymentMode: "cash" | "upi") => {
     setSubmitting(true);
 
     let screenshotPath: string | null = null;
 
     if (paymentMode === "upi" && upiScreenshot) {
-      const fileName = `${assignmentId}_${Date.now()}.${upiScreenshot.name.split('.').pop()}`;
+      const fileName = `${daoId}_${Date.now()}.${upiScreenshot.name.split('.').pop()}`;
       const { error: uploadError } = await supabase.storage
         .from("delivery-proofs")
         .upload(fileName, upiScreenshot);
@@ -230,28 +235,51 @@ export default function Dashboard() {
       screenshotPath = fileName;
     }
 
+    // Mark this specific order as delivered
     const { error } = await supabase
-      .from("delivery_assignments")
+      .from("delivery_assignment_orders")
       .update({
         status: "delivered",
         delivered_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        payment_mode: paymentMode,
-        ...(screenshotPath ? { upi_screenshot_path: screenshotPath } : {}),
       })
-      .eq("id", assignmentId);
+      .eq("id", daoId);
+
+    if (error) {
+      toast.error("Failed to mark delivered");
+      setSubmitting(false);
+      return;
+    }
+
+    // Check if all orders in this assignment are now delivered
+    const { data: remainingOrders } = await supabase
+      .from("delivery_assignment_orders")
+      .select("id, status")
+      .eq("assignment_id", assignmentId);
+
+    const allDelivered = remainingOrders?.every((o) => o.status === "delivered" || o.id === daoId);
+
+    if (allDelivered) {
+      // Mark the whole assignment as delivered
+      await supabase
+        .from("delivery_assignments")
+        .update({
+          status: "delivered",
+          delivered_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          payment_mode: paymentMode,
+          ...(screenshotPath ? { upi_screenshot_path: screenshotPath } : {}),
+        })
+        .eq("id", assignmentId);
+    }
 
     setSubmitting(false);
-    if (!error) {
-      toast.success("Delivery complete! 🎉");
-      setPaymentAssignmentId(null);
-      setUpiScreenshot(null);
-      setUpiPreview(null);
-      queryClient.invalidateQueries({ queryKey: ["active-assignments"] });
-      queryClient.invalidateQueries({ queryKey: ["today-stats"] });
-    } else {
-      toast.error("Failed to mark delivered");
-    }
+    toast.success(allDelivered ? "All orders delivered! 🎉" : "Order delivered! ✅");
+    setPaymentOrderDaoId(null);
+    setPaymentAssignmentId(null);
+    setUpiScreenshot(null);
+    setUpiPreview(null);
+    queryClient.invalidateQueries({ queryKey: ["active-assignments"] });
+    queryClient.invalidateQueries({ queryKey: ["today-stats"] });
   };
 
   if (!partner) return null;
@@ -415,11 +443,32 @@ export default function Dashboard() {
                           Note: {order.notes}
                         </p>
                       )}
+
+                      {/* Per-order deliver button (only when picked_up and not yet delivered) */}
+                      {assignment.status === "picked_up" && order.dao_status !== "delivered" && (
+                        <Button
+                          onClick={() => {
+                            setPaymentOrderDaoId(order.dao_id);
+                            setPaymentAssignmentId(assignment.id);
+                          }}
+                          size="sm"
+                          className="w-full h-9 text-xs font-semibold gap-1.5 bg-success hover:bg-success/90"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Mark Delivered
+                        </Button>
+                      )}
+                      {assignment.status === "picked_up" && order.dao_status === "delivered" && (
+                        <div className="flex items-center gap-1.5 text-xs text-success font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Delivered
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
 
-                {/* Action button per assignment */}
+                {/* Action button per assignment - Accept & Pickup only */}
                 <div className="px-4 pb-4 pt-1">
                   {assignment.status === "pending" && (
                     <Button
@@ -439,15 +488,6 @@ export default function Dashboard() {
                     >
                       <Bike className="w-4 h-4" />
                       {updatingId === assignment.id ? "Updating..." : "Mark Picked Up"}
-                    </Button>
-                  )}
-                  {assignment.status === "picked_up" && (
-                    <Button
-                      onClick={() => setPaymentAssignmentId(assignment.id)}
-                      className="w-full h-11 text-sm font-semibold gap-2 bg-success hover:bg-success/90"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      Mark Delivered
                     </Button>
                   )}
                 </div>
@@ -481,19 +521,19 @@ export default function Dashboard() {
       </div>
 
       {/* Payment Mode Modal */}
-      {paymentAssignmentId && (
+      {paymentOrderDaoId && paymentAssignmentId && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
           <div className="bg-card w-full max-w-md rounded-t-2xl p-6 space-y-5 animate-in slide-in-from-bottom">
             <div className="flex items-center justify-between">
               <h3 className="font-heading font-bold text-lg text-foreground">Payment Method</h3>
-              <button onClick={() => { setPaymentAssignmentId(null); setUpiScreenshot(null); setUpiPreview(null); }}>
+              <button onClick={() => { setPaymentOrderDaoId(null); setPaymentAssignmentId(null); setUpiScreenshot(null); setUpiPreview(null); }}>
                 <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
             <p className="text-sm text-muted-foreground">How did the customer pay?</p>
 
             <Button
-              onClick={() => submitDelivery(paymentAssignmentId, "cash")}
+              onClick={() => submitDelivery(paymentOrderDaoId!, paymentAssignmentId!, "cash")}
               disabled={submitting}
               className="w-full h-12 text-base font-semibold gap-2"
               variant="outline"
@@ -536,7 +576,7 @@ export default function Dashboard() {
               )}
 
               <Button
-                onClick={() => submitDelivery(paymentAssignmentId, "upi")}
+                onClick={() => submitDelivery(paymentOrderDaoId!, paymentAssignmentId!, "upi")}
                 disabled={submitting || !upiScreenshot}
                 className="w-full h-12 text-base font-semibold gap-2 bg-success hover:bg-success/90"
               >

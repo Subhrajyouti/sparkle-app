@@ -274,20 +274,26 @@ export type Database = {
         Row: {
           assignment_id: string
           created_at: string
+          delivered_at: string | null
           id: string
           kitchen_order_id: string
+          status: string
         }
         Insert: {
           assignment_id: string
           created_at?: string
+          delivered_at?: string | null
           id?: string
           kitchen_order_id: string
+          status?: string
         }
         Update: {
           assignment_id?: string
           created_at?: string
+          delivered_at?: string | null
           id?: string
           kitchen_order_id?: string
+          status?: string
         }
         Relationships: [
           {
@@ -643,6 +649,7 @@ export type Database = {
           location_lng: number | null
           location_text: string | null
           notes: string | null
+          order_code: string | null
           ready_at: string | null
           status: string
           total_amount: number
@@ -659,6 +666,7 @@ export type Database = {
           location_lng?: number | null
           location_text?: string | null
           notes?: string | null
+          order_code?: string | null
           ready_at?: string | null
           status?: string
           total_amount?: number
@@ -675,6 +683,7 @@ export type Database = {
           location_lng?: number | null
           location_text?: string | null
           notes?: string | null
+          order_code?: string | null
           ready_at?: string | null
           status?: string
           total_amount?: number

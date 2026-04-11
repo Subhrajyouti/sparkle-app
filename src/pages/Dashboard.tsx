@@ -10,9 +10,30 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   Phone, MapPin, IndianRupee, Package, Clock, CheckCircle2,
-  LogOut, History, Bike, Camera, X
+  LogOut, History, Bike, Camera, X, Timer
 } from "lucide-react";
 import { format } from "date-fns";
+
+function LiveTimer({ since }: { since: string }) {
+  const [elapsed, setElapsed] = useState("");
+  useEffect(() => {
+    const update = () => {
+      const diff = Math.max(0, Math.floor((Date.now() - new Date(since).getTime()) / 1000));
+      const m = Math.floor(diff / 60);
+      const s = diff % 60;
+      setElapsed(`${m}:${s.toString().padStart(2, "0")}`);
+    };
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [since]);
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-mono font-bold text-primary">
+      <Timer className="w-3.5 h-3.5" />
+      {elapsed}
+    </span>
+  );
+}
 import logo from "@/assets/logo.png";
 
 interface KitchenOrderItem {
@@ -26,6 +47,7 @@ interface KitchenOrder {
   id: string;
   customer_name: string;
   customer_phone: string;
+  order_code: string | null;
   location_text: string | null;
   location_lat: number | null;
   location_lng: number | null;
@@ -93,7 +115,7 @@ export default function Dashboard() {
       const [{ data: kitchenOrders }, { data: orderItems }] = await Promise.all([
         supabase
           .from("kitchen_orders")
-          .select("id, customer_name, customer_phone, location_text, location_lat, location_lng, total_amount, notes")
+          .select("id, customer_name, customer_phone, location_text, location_lat, location_lng, total_amount, notes, order_code")
           .in("id", orderIds),
         supabase
           .from("kitchen_order_items")
@@ -110,6 +132,7 @@ export default function Dashboard() {
             id: ko?.id || ao.kitchen_order_id,
             customer_name: ko?.customer_name || "Unknown",
             customer_phone: ko?.customer_phone || "",
+            order_code: ko?.order_code || null,
             location_text: ko?.location_text || null,
             location_lat: ko?.location_lat || null,
             location_lng: ko?.location_lng || null,
@@ -209,11 +232,39 @@ export default function Dashboard() {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const compressImage = (file: File, maxWidth = 800, quality = 0.6): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ratio = Math.min(maxWidth / img.width, maxWidth / img.height, 1);
+        canvas.width = img.width * ratio;
+        canvas.height = img.height * ratio;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(
+          (blob) => (blob ? resolve(blob) : reject(new Error("Compression failed"))),
+          "image/jpeg",
+          quality
+        );
+      };
+      img.onerror = reject;
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setUpiScreenshot(file);
-      setUpiPreview(URL.createObjectURL(file));
+      try {
+        const compressed = await compressImage(file);
+        const compressedFile = new File([compressed], `compressed_${Date.now()}.jpg`, { type: "image/jpeg" });
+        setUpiScreenshot(compressedFile);
+        setUpiPreview(URL.createObjectURL(compressed));
+      } catch {
+        setUpiScreenshot(file);
+        setUpiPreview(URL.createObjectURL(file));
+      }
     }
   };
 
@@ -223,10 +274,10 @@ export default function Dashboard() {
     let screenshotPath: string | null = null;
 
     if (paymentMode === "upi" && upiScreenshot) {
-      const fileName = `${daoId}_${Date.now()}.${upiScreenshot.name.split('.').pop()}`;
+      const fileName = `${daoId}_${Date.now()}.jpg`;
       const { error: uploadError } = await supabase.storage
         .from("delivery-proofs")
-        .upload(fileName, upiScreenshot);
+        .upload(fileName, upiScreenshot, { contentType: "image/jpeg" });
       if (uploadError) {
         toast.error("Failed to upload UPI screenshot");
         setSubmitting(false);
@@ -368,9 +419,13 @@ export default function Dashboard() {
                     <Badge className={`${statusColor[assignment.status] || ""} text-white border-0 text-[10px]`}>
                       {statusLabel[assignment.status] || assignment.status}
                     </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {format(new Date(assignment.assigned_at), "hh:mm a")}
-                    </span>
+                    {assignment.status === "picked_up" && assignment.picked_up_at ? (
+                      <LiveTimer since={assignment.picked_up_at} />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {format(new Date(assignment.assigned_at), "hh:mm a")}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 text-xs">
                     <span className="text-muted-foreground">
@@ -394,8 +449,10 @@ export default function Dashboard() {
                             </div>
                           )}
                           <div>
-                            <p className="font-semibold text-sm text-foreground">{order.customer_name}</p>
-                            <p className="text-xs text-muted-foreground">{order.customer_phone}</p>
+                            <p className="font-semibold text-sm text-foreground font-mono tracking-wider">
+                              #{order.order_code ? order.order_code.slice(-4) : "----"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{order.customer_name}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -413,15 +470,13 @@ export default function Dashboard() {
                       </div>
 
                       {(order.location_lat && order.location_lng) ? (
-                        <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${order.location_lat},${order.location_lng}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${order.location_lat},${order.location_lng}`, '_blank')}
                           className="flex items-center gap-2 text-xs text-primary font-medium bg-primary/5 px-3 py-1.5 rounded-md"
                         >
                           <MapPin className="w-3.5 h-3.5" />
                           Open in Maps
-                        </a>
+                        </button>
                       ) : order.location_text ? (
                         <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-md">
                           <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0" />

@@ -60,6 +60,7 @@ interface KitchenOrder {
 
 interface Assignment {
   id: string;
+  batch_id: string | null;
   status: string;
   delivery_fee: number;
   total_cash_to_collect: number;
@@ -94,7 +95,7 @@ export default function Dashboard() {
         .from("delivery_assignments")
         .select("*")
         .eq("delivery_partner_id", partner.id)
-        .in("status", ["pending", "accepted", "picked_up"])
+        .in("status", ["requested", "pending", "accepted", "picked_up"])
         .order("assigned_at", { ascending: false });
 
       if (!assignments || assignments.length === 0) return [];
@@ -147,7 +148,7 @@ export default function Dashboard() {
       });
     },
     enabled: !!partner,
-    refetchInterval: 10000,
+    refetchInterval: 5000,
   });
 
   const { data: todayStats } = useQuery({
@@ -204,6 +205,49 @@ export default function Dashboard() {
       toast.success(newStatus ? "You're now online!" : "You're now offline");
     }
     setToggling(false);
+  };
+
+  const acceptRequest = async (assignmentId: string, batchId: string | null) => {
+    setUpdatingId(assignmentId);
+    // Accept this assignment (skip confirm, go straight to accepted)
+    const { error } = await supabase
+      .from("delivery_assignments")
+      .update({ status: "accepted", updated_at: new Date().toISOString() })
+      .eq("id", assignmentId);
+
+    if (!error && batchId) {
+      // Cancel other requests in the same batch
+      await supabase
+        .from("delivery_assignments")
+        .update({ status: "cancelled", updated_at: new Date().toISOString() })
+        .eq("batch_id", batchId)
+        .neq("id", assignmentId)
+        .eq("status", "requested");
+    }
+
+    setUpdatingId(null);
+    if (!error) {
+      toast.success("Order accepted! 🎉");
+      queryClient.invalidateQueries({ queryKey: ["active-assignments"] });
+    } else {
+      toast.error("Failed to accept order");
+    }
+  };
+
+  const rejectRequest = async (assignmentId: string) => {
+    setUpdatingId(assignmentId);
+    const { error } = await supabase
+      .from("delivery_assignments")
+      .update({ status: "rejected", updated_at: new Date().toISOString() })
+      .eq("id", assignmentId);
+
+    setUpdatingId(null);
+    if (!error) {
+      toast.success("Order rejected");
+      queryClient.invalidateQueries({ queryKey: ["active-assignments"] });
+    } else {
+      toast.error("Failed to reject order");
+    }
   };
 
   const updateAssignmentStatus = async (assignmentId: string, newStatus: "accepted" | "picked_up") => {
@@ -336,12 +380,14 @@ export default function Dashboard() {
   if (!partner) return null;
 
   const statusLabel: Record<string, string> = {
-    pending: "New Request",
-    accepted: "Accepted",
+    requested: "New Request",
+    pending: "Accepted",
+    accepted: "Confirmed",
     picked_up: "Picked Up",
   };
 
   const statusColor: Record<string, string> = {
+    requested: "bg-orange-500",
     pending: "bg-amber-500",
     accepted: "bg-blue-500",
     picked_up: "bg-primary",
@@ -523,19 +569,30 @@ export default function Dashboard() {
                   ))}
                 </div>
 
-                {/* Action button per assignment - Accept & Pickup only */}
-                <div className="px-4 pb-4 pt-1">
-                  {assignment.status === "pending" && (
-                    <Button
-                      onClick={() => updateAssignmentStatus(assignment.id, "accepted")}
-                      disabled={updatingId === assignment.id}
-                      className="w-full h-11 text-sm font-semibold gap-2"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      {updatingId === assignment.id ? "Accepting..." : "Accept Order"}
-                    </Button>
+                {/* Action buttons per assignment */}
+                <div className="px-4 pb-4 pt-1 space-y-2">
+                  {assignment.status === "requested" && (
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => acceptRequest(assignment.id, assignment.batch_id)}
+                        disabled={updatingId === assignment.id}
+                        className="flex-1 h-11 text-sm font-semibold gap-2"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        {updatingId === assignment.id ? "Accepting..." : "Accept"}
+                      </Button>
+                      <Button
+                        onClick={() => rejectRequest(assignment.id)}
+                        disabled={updatingId === assignment.id}
+                        variant="destructive"
+                        className="flex-1 h-11 text-sm font-semibold gap-2"
+                      >
+                        <X className="w-4 h-4" />
+                        Reject
+                      </Button>
+                    </div>
                   )}
-                  {assignment.status === "accepted" && (
+                  {(assignment.status === "pending" || assignment.status === "accepted") && (
                     <Button
                       onClick={() => updateAssignmentStatus(assignment.id, "picked_up")}
                       disabled={updatingId === assignment.id}

@@ -315,6 +315,7 @@ export type Database = {
       delivery_assignments: {
         Row: {
           assigned_at: string
+          batch_id: string | null
           created_at: string
           delivered_at: string | null
           delivery_fee: number
@@ -330,6 +331,7 @@ export type Database = {
         }
         Insert: {
           assigned_at?: string
+          batch_id?: string | null
           created_at?: string
           delivered_at?: string | null
           delivery_fee?: number
@@ -345,6 +347,7 @@ export type Database = {
         }
         Update: {
           assigned_at?: string
+          batch_id?: string | null
           created_at?: string
           delivered_at?: string | null
           delivery_fee?: number
@@ -650,10 +653,12 @@ export type Database = {
           location_text: string | null
           notes: string | null
           order_code: string | null
+          payment_mode: string
           ready_at: string | null
           status: string
           total_amount: number
           updated_at: string
+          upi_screenshot_path: string | null
         }
         Insert: {
           accepted_at?: string | null
@@ -667,10 +672,12 @@ export type Database = {
           location_text?: string | null
           notes?: string | null
           order_code?: string | null
+          payment_mode?: string
           ready_at?: string | null
           status?: string
           total_amount?: number
           updated_at?: string
+          upi_screenshot_path?: string | null
         }
         Update: {
           accepted_at?: string | null
@@ -684,10 +691,12 @@ export type Database = {
           location_text?: string | null
           notes?: string | null
           order_code?: string | null
+          payment_mode?: string
           ready_at?: string | null
           status?: string
           total_amount?: number
           updated_at?: string
+          upi_screenshot_path?: string | null
         }
         Relationships: [
           {
@@ -848,6 +857,30 @@ export type Database = {
           name?: string
           unit?: string
           yield_qty?: number
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
         }
         Relationships: []
       }

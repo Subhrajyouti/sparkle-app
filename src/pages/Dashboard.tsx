@@ -81,7 +81,7 @@ export default function Dashboard() {
 
       const { data: allAssignmentOrders } = await supabase
         .from("delivery_assignment_orders")
-        .select("id, assignment_id, kitchen_order_id")
+        .select("id, assignment_id, kitchen_order_id, status, delivered_at")
         .in("assignment_id", assignmentIds);
 
       if (!allAssignmentOrders || allAssignmentOrders.length === 0) {
@@ -116,6 +116,8 @@ export default function Dashboard() {
             total_amount: ko?.total_amount || 0,
             notes: ko?.notes || null,
             items,
+            dao_id: ao.id,
+            dao_status: (ao as any).status || "pending",
           };
         });
         return { ...assignment, orders } as Assignment;

@@ -217,13 +217,13 @@ export default function Dashboard() {
     }
   };
 
-  const submitDelivery = async (assignmentId: string, paymentMode: "cash" | "upi") => {
+  const submitDelivery = async (daoId: string, assignmentId: string, paymentMode: "cash" | "upi") => {
     setSubmitting(true);
 
     let screenshotPath: string | null = null;
 
     if (paymentMode === "upi" && upiScreenshot) {
-      const fileName = `${assignmentId}_${Date.now()}.${upiScreenshot.name.split('.').pop()}`;
+      const fileName = `${daoId}_${Date.now()}.${upiScreenshot.name.split('.').pop()}`;
       const { error: uploadError } = await supabase.storage
         .from("delivery-proofs")
         .upload(fileName, upiScreenshot);
@@ -235,28 +235,51 @@ export default function Dashboard() {
       screenshotPath = fileName;
     }
 
+    // Mark this specific order as delivered
     const { error } = await supabase
-      .from("delivery_assignments")
+      .from("delivery_assignment_orders")
       .update({
         status: "delivered",
         delivered_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        payment_mode: paymentMode,
-        ...(screenshotPath ? { upi_screenshot_path: screenshotPath } : {}),
       })
-      .eq("id", assignmentId);
+      .eq("id", daoId);
+
+    if (error) {
+      toast.error("Failed to mark delivered");
+      setSubmitting(false);
+      return;
+    }
+
+    // Check if all orders in this assignment are now delivered
+    const { data: remainingOrders } = await supabase
+      .from("delivery_assignment_orders")
+      .select("id, status")
+      .eq("assignment_id", assignmentId);
+
+    const allDelivered = remainingOrders?.every((o) => o.status === "delivered" || o.id === daoId);
+
+    if (allDelivered) {
+      // Mark the whole assignment as delivered
+      await supabase
+        .from("delivery_assignments")
+        .update({
+          status: "delivered",
+          delivered_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          payment_mode: paymentMode,
+          ...(screenshotPath ? { upi_screenshot_path: screenshotPath } : {}),
+        })
+        .eq("id", assignmentId);
+    }
 
     setSubmitting(false);
-    if (!error) {
-      toast.success("Delivery complete! 🎉");
-      setPaymentAssignmentId(null);
-      setUpiScreenshot(null);
-      setUpiPreview(null);
-      queryClient.invalidateQueries({ queryKey: ["active-assignments"] });
-      queryClient.invalidateQueries({ queryKey: ["today-stats"] });
-    } else {
-      toast.error("Failed to mark delivered");
-    }
+    toast.success(allDelivered ? "All orders delivered! 🎉" : "Order delivered! ✅");
+    setPaymentOrderDaoId(null);
+    setPaymentAssignmentId(null);
+    setUpiScreenshot(null);
+    setUpiPreview(null);
+    queryClient.invalidateQueries({ queryKey: ["active-assignments"] });
+    queryClient.invalidateQueries({ queryKey: ["today-stats"] });
   };
 
   if (!partner) return null;

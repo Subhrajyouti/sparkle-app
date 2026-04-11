@@ -15,25 +15,23 @@ import {
 import { format } from "date-fns";
 import logo from "@/assets/logo.png";
 
-interface AssignmentOrder {
+interface KitchenOrderItem {
   id: string;
-  kitchen_order_id: string;
-  kitchen_orders: {
-    id: string;
-    customer_name: string;
-    customer_phone: string;
-    location_text: string | null;
-    location_lat: number | null;
-    location_lng: number | null;
-    total_amount: number;
-    notes: string | null;
-    kitchen_order_items: {
-      id: string;
-      item_name: string;
-      quantity: number;
-      unit_price: number;
-    }[];
-  };
+  item_name: string;
+  quantity: number;
+  unit_price: number;
+}
+
+interface KitchenOrder {
+  id: string;
+  customer_name: string;
+  customer_phone: string;
+  location_text: string | null;
+  location_lat: number | null;
+  location_lng: number | null;
+  total_amount: number;
+  notes: string | null;
+  items: KitchenOrderItem[];
 }
 
 interface Assignment {
@@ -47,7 +45,7 @@ interface Assignment {
   delivered_at: string | null;
   payment_mode: string;
   upi_screenshot_path: string | null;
-  orders: AssignmentOrder[];
+  orders: KitchenOrder[];
 }
 
 export default function Dashboard() {
@@ -55,58 +53,70 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [toggling, setToggling] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentAssignmentId, setPaymentAssignmentId] = useState<string | null>(null);
   const [upiScreenshot, setUpiScreenshot] = useState<File | null>(null);
   const [upiPreview, setUpiPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: activeAssignment, isLoading } = useQuery({
-    queryKey: ["active-assignment", partner?.id],
-    queryFn: async () => {
-      if (!partner) return null;
+  const { data: activeAssignments, isLoading } = useQuery({
+    queryKey: ["active-assignments", partner?.id],
+    queryFn: async (): Promise<Assignment[]> => {
+      if (!partner) return [];
 
       const { data: assignments } = await supabase
         .from("delivery_assignments")
         .select("*")
         .eq("delivery_partner_id", partner.id)
         .in("status", ["pending", "accepted", "picked_up"])
-        .order("assigned_at", { ascending: false })
-        .limit(1);
+        .order("assigned_at", { ascending: false });
 
-      if (!assignments || assignments.length === 0) return null;
-      const assignment = assignments[0];
+      if (!assignments || assignments.length === 0) return [];
 
-      const { data: assignmentOrders } = await supabase
+      const assignmentIds = assignments.map((a) => a.id);
+
+      const { data: allAssignmentOrders } = await supabase
         .from("delivery_assignment_orders")
-        .select("id, kitchen_order_id")
-        .eq("assignment_id", assignment.id);
+        .select("id, assignment_id, kitchen_order_id")
+        .in("assignment_id", assignmentIds);
 
-      if (!assignmentOrders || assignmentOrders.length === 0) {
-        return { ...assignment, orders: [] } as Assignment;
+      if (!allAssignmentOrders || allAssignmentOrders.length === 0) {
+        return assignments.map((a) => ({ ...a, orders: [] })) as Assignment[];
       }
 
-      const orderIds = assignmentOrders.map((o) => o.kitchen_order_id);
-      const { data: kitchenOrders } = await supabase
-        .from("kitchen_orders")
-        .select("id, customer_name, customer_phone, location_text, location_lat, location_lng, total_amount, notes")
-        .in("id", orderIds);
+      const orderIds = [...new Set(allAssignmentOrders.map((o) => o.kitchen_order_id))];
 
-      const { data: orderItems } = await supabase
-        .from("kitchen_order_items")
-        .select("id, order_id, item_name, quantity, unit_price")
-        .in("order_id", orderIds);
+      const [{ data: kitchenOrders }, { data: orderItems }] = await Promise.all([
+        supabase
+          .from("kitchen_orders")
+          .select("id, customer_name, customer_phone, location_text, location_lat, location_lng, total_amount, notes")
+          .in("id", orderIds),
+        supabase
+          .from("kitchen_order_items")
+          .select("id, order_id, item_name, quantity, unit_price")
+          .in("order_id", orderIds),
+      ]);
 
-      const ordersWithDetails = assignmentOrders.map((ao) => {
-        const ko = kitchenOrders?.find((k) => k.id === ao.kitchen_order_id);
-        const items = orderItems?.filter((i) => i.order_id === ao.kitchen_order_id) || [];
-        return {
-          ...ao,
-          kitchen_orders: { ...ko, kitchen_order_items: items },
-        };
-      }) as AssignmentOrder[];
-
-      return { ...assignment, orders: ordersWithDetails } as Assignment;
+      return assignments.map((assignment) => {
+        const aOrders = allAssignmentOrders.filter((ao) => ao.assignment_id === assignment.id);
+        const orders: KitchenOrder[] = aOrders.map((ao) => {
+          const ko = kitchenOrders?.find((k) => k.id === ao.kitchen_order_id);
+          const items = orderItems?.filter((i) => i.order_id === ao.kitchen_order_id) || [];
+          return {
+            id: ko?.id || ao.kitchen_order_id,
+            customer_name: ko?.customer_name || "Unknown",
+            customer_phone: ko?.customer_phone || "",
+            location_text: ko?.location_text || null,
+            location_lat: ko?.location_lat || null,
+            location_lng: ko?.location_lng || null,
+            total_amount: ko?.total_amount || 0,
+            notes: ko?.notes || null,
+            items,
+          };
+        });
+        return { ...assignment, orders } as Assignment;
+      });
     },
     enabled: !!partner,
     refetchInterval: 10000,
@@ -143,7 +153,7 @@ export default function Dashboard() {
           if (payload.eventType === "INSERT") {
             toast.info("New delivery assignment!", { duration: 5000 });
           }
-          queryClient.invalidateQueries({ queryKey: ["active-assignment"] });
+          queryClient.invalidateQueries({ queryKey: ["active-assignments"] });
           queryClient.invalidateQueries({ queryKey: ["today-stats"] });
         }
       )
@@ -168,8 +178,8 @@ export default function Dashboard() {
     setToggling(false);
   };
 
-  const updateAssignmentStatus = async (newStatus: "accepted" | "picked_up") => {
-    if (!activeAssignment) return;
+  const updateAssignmentStatus = async (assignmentId: string, newStatus: "accepted" | "picked_up") => {
+    setUpdatingId(assignmentId);
     const updateData = {
       status: newStatus,
       updated_at: new Date().toISOString(),
@@ -179,22 +189,19 @@ export default function Dashboard() {
     const { error } = await supabase
       .from("delivery_assignments")
       .update(updateData)
-      .eq("id", activeAssignment.id);
+      .eq("id", assignmentId);
 
+    setUpdatingId(null);
     if (!error) {
       const messages: Record<string, string> = {
         accepted: "Order accepted! Head to kitchen 🏃",
         picked_up: "Order picked up! On the way 🚴",
       };
       toast.success(messages[newStatus]);
-      queryClient.invalidateQueries({ queryKey: ["active-assignment"] });
+      queryClient.invalidateQueries({ queryKey: ["active-assignments"] });
     } else {
       toast.error("Failed to update status");
     }
-  };
-
-  const handleMarkDelivered = () => {
-    setShowPaymentModal(true);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -205,14 +212,13 @@ export default function Dashboard() {
     }
   };
 
-  const submitDelivery = async (paymentMode: "cash" | "upi") => {
-    if (!activeAssignment) return;
+  const submitDelivery = async (assignmentId: string, paymentMode: "cash" | "upi") => {
     setSubmitting(true);
 
     let screenshotPath: string | null = null;
 
     if (paymentMode === "upi" && upiScreenshot) {
-      const fileName = `${activeAssignment.id}_${Date.now()}.${upiScreenshot.name.split('.').pop()}`;
+      const fileName = `${assignmentId}_${Date.now()}.${upiScreenshot.name.split('.').pop()}`;
       const { error: uploadError } = await supabase.storage
         .from("delivery-proofs")
         .upload(fileName, upiScreenshot);
@@ -233,15 +239,15 @@ export default function Dashboard() {
         payment_mode: paymentMode,
         ...(screenshotPath ? { upi_screenshot_path: screenshotPath } : {}),
       })
-      .eq("id", activeAssignment.id);
+      .eq("id", assignmentId);
 
     setSubmitting(false);
     if (!error) {
       toast.success("Delivery complete! 🎉");
-      setShowPaymentModal(false);
+      setPaymentAssignmentId(null);
       setUpiScreenshot(null);
       setUpiPreview(null);
-      queryClient.invalidateQueries({ queryKey: ["active-assignment"] });
+      queryClient.invalidateQueries({ queryKey: ["active-assignments"] });
       queryClient.invalidateQueries({ queryKey: ["today-stats"] });
     } else {
       toast.error("Failed to mark delivered");
@@ -251,7 +257,7 @@ export default function Dashboard() {
   if (!partner) return null;
 
   const statusLabel: Record<string, string> = {
-    pending: "New Order",
+    pending: "New Request",
     accepted: "Accepted",
     picked_up: "Picked Up",
   };
@@ -261,6 +267,8 @@ export default function Dashboard() {
     accepted: "bg-blue-500",
     picked_up: "bg-primary",
   };
+
+  const hasActiveAssignments = activeAssignments && activeAssignments.length > 0;
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -310,127 +318,142 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Active Assignment */}
-      <div className="px-4 pt-4">
+      {/* Active Assignments */}
+      <div className="px-4 pt-4 space-y-4">
         {isLoading ? (
           <Card className="p-6 flex items-center justify-center">
             <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" />
           </Card>
-        ) : activeAssignment ? (
-          <div className="space-y-3">
+        ) : hasActiveAssignments ? (
+          <>
             <div className="flex items-center justify-between">
-              <h3 className="font-heading font-semibold text-foreground">Active Assignment</h3>
-              <Badge className={`${statusColor[activeAssignment.status] || ""} text-white border-0`}>
-                {statusLabel[activeAssignment.status] || activeAssignment.status}
-              </Badge>
+              <h3 className="font-heading font-semibold text-foreground">
+                Active Assignments ({activeAssignments.length})
+              </h3>
             </div>
 
-            {/* Summary banner */}
-            <Card className="p-4 bg-accent/10 border-accent/30 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground font-medium">Total to Collect</p>
-                  <p className="text-2xl font-heading font-bold text-foreground">₹{activeAssignment.total_cash_to_collect}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground font-medium">Your Fee</p>
-                  <p className="text-lg font-heading font-bold text-success">₹{activeAssignment.delivery_fee}</p>
-                </div>
-              </div>
-            </Card>
-
-            {/* Orders - each with cash to collect */}
-            {activeAssignment.orders.map((order, idx) => (
-              <Card key={order.id} className="p-4 space-y-3 shadow-sm">
-                <div className="flex items-start justify-between">
+            {activeAssignments.map((assignment) => (
+              <Card key={assignment.id} className="overflow-hidden shadow-sm">
+                {/* Assignment header */}
+                <div className="px-4 py-3 bg-muted/50 border-b border-border flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                      <span className="text-xs font-bold text-primary-foreground">{idx + 1}</span>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-sm text-foreground">{order.kitchen_orders.customer_name}</p>
-                      <p className="text-xs text-muted-foreground">{order.kitchen_orders.customer_phone}</p>
-                    </div>
+                    <Badge className={`${statusColor[assignment.status] || ""} text-white border-0 text-[10px]`}>
+                      {statusLabel[assignment.status] || assignment.status}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {format(new Date(assignment.assigned_at), "hh:mm a")}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-right">
-                      <p className="text-[10px] text-muted-foreground">Collect</p>
-                      <p className="text-sm font-heading font-bold text-foreground">₹{order.kitchen_orders.total_amount}</p>
-                    </div>
-                    <a
-                      href={`tel:${order.kitchen_orders.customer_phone}`}
-                      className="w-9 h-9 rounded-full bg-success/10 flex items-center justify-center"
-                    >
-                      <Phone className="w-4 h-4 text-success" />
-                    </a>
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="text-muted-foreground">
+                      Collect: <span className="font-bold text-foreground">₹{assignment.total_cash_to_collect}</span>
+                    </span>
+                    <span className="text-muted-foreground">
+                      Fee: <span className="font-bold text-success">₹{assignment.delivery_fee}</span>
+                    </span>
                   </div>
                 </div>
 
-                {/* Location */}
-                {(order.kitchen_orders.location_lat && order.kitchen_orders.location_lng) ? (
-                  <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${order.kitchen_orders.location_lat},${order.kitchen_orders.location_lng}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-xs text-primary font-medium bg-primary/5 px-3 py-2 rounded-md"
-                  >
-                    <MapPin className="w-3.5 h-3.5" />
-                    Open in Maps
-                  </a>
-                ) : order.kitchen_orders.location_text ? (
-                  <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted px-3 py-2 rounded-md">
-                    <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                    {order.kitchen_orders.location_text}
-                  </div>
-                ) : null}
+                {/* Orders within this assignment */}
+                <div className="divide-y divide-border">
+                  {assignment.orders.map((order, idx) => (
+                    <div key={order.id} className="p-4 space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          {assignment.orders.length > 1 && (
+                            <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                              <span className="text-[10px] font-bold text-primary-foreground">{idx + 1}</span>
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-semibold text-sm text-foreground">{order.customer_name}</p>
+                            <p className="text-xs text-muted-foreground">{order.customer_phone}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right">
+                            <p className="text-[10px] text-muted-foreground">Cash</p>
+                            <p className="text-sm font-heading font-bold text-foreground">₹{order.total_amount}</p>
+                          </div>
+                          <a
+                            href={`tel:${order.customer_phone}`}
+                            className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center"
+                          >
+                            <Phone className="w-3.5 h-3.5 text-success" />
+                          </a>
+                        </div>
+                      </div>
 
-                {/* Items */}
-                <div className="space-y-1">
-                  {order.kitchen_orders.kitchen_order_items.map((item) => (
-                    <div key={item.id} className="flex justify-between text-xs text-muted-foreground">
-                      <span>{item.quantity} × {item.item_name}</span>
-                      <span>₹{item.quantity * item.unit_price}</span>
+                      {(order.location_lat && order.location_lng) ? (
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${order.location_lat},${order.location_lng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-xs text-primary font-medium bg-primary/5 px-3 py-1.5 rounded-md"
+                        >
+                          <MapPin className="w-3.5 h-3.5" />
+                          Open in Maps
+                        </a>
+                      ) : order.location_text ? (
+                        <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-md">
+                          <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                          {order.location_text}
+                        </div>
+                      ) : null}
+
+                      <div className="space-y-0.5">
+                        {order.items.map((item) => (
+                          <div key={item.id} className="flex justify-between text-xs text-muted-foreground">
+                            <span>{item.quantity} × {item.item_name}</span>
+                            <span>₹{item.quantity * item.unit_price}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {order.notes && (
+                        <p className="text-xs text-muted-foreground italic bg-muted px-3 py-1 rounded">
+                          Note: {order.notes}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
 
-                {order.kitchen_orders.notes && (
-                  <p className="text-xs text-muted-foreground italic bg-muted px-3 py-1.5 rounded">
-                    Note: {order.kitchen_orders.notes}
-                  </p>
-                )}
+                {/* Action button per assignment */}
+                <div className="px-4 pb-4 pt-1">
+                  {assignment.status === "pending" && (
+                    <Button
+                      onClick={() => updateAssignmentStatus(assignment.id, "accepted")}
+                      disabled={updatingId === assignment.id}
+                      className="w-full h-11 text-sm font-semibold gap-2"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      {updatingId === assignment.id ? "Accepting..." : "Accept Order"}
+                    </Button>
+                  )}
+                  {assignment.status === "accepted" && (
+                    <Button
+                      onClick={() => updateAssignmentStatus(assignment.id, "picked_up")}
+                      disabled={updatingId === assignment.id}
+                      className="w-full h-11 text-sm font-semibold gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"
+                    >
+                      <Bike className="w-4 h-4" />
+                      {updatingId === assignment.id ? "Updating..." : "Mark Picked Up"}
+                    </Button>
+                  )}
+                  {assignment.status === "picked_up" && (
+                    <Button
+                      onClick={() => setPaymentAssignmentId(assignment.id)}
+                      className="w-full h-11 text-sm font-semibold gap-2 bg-success hover:bg-success/90"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      Mark Delivered
+                    </Button>
+                  )}
+                </div>
               </Card>
             ))}
-
-            {/* Action Buttons based on status */}
-            {activeAssignment.status === "pending" && (
-              <Button
-                onClick={() => updateAssignmentStatus("accepted")}
-                className="w-full h-12 text-base font-semibold gap-2"
-              >
-                <CheckCircle2 className="w-5 h-5" />
-                Accept Order
-              </Button>
-            )}
-            {activeAssignment.status === "accepted" && (
-              <Button
-                onClick={() => updateAssignmentStatus("picked_up")}
-                className="w-full h-12 text-base font-semibold gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"
-              >
-                <Bike className="w-5 h-5" />
-                Mark Picked Up
-              </Button>
-            )}
-            {activeAssignment.status === "picked_up" && (
-              <Button
-                onClick={handleMarkDelivered}
-                className="w-full h-12 text-base font-semibold gap-2 bg-success hover:bg-success/90"
-              >
-                <CheckCircle2 className="w-5 h-5" />
-                Mark Delivered
-              </Button>
-            )}
-          </div>
+          </>
         ) : partner.is_active ? (
           <Card className="p-8 flex flex-col items-center gap-4 shadow-sm">
             <div className="relative">
@@ -458,20 +481,19 @@ export default function Dashboard() {
       </div>
 
       {/* Payment Mode Modal */}
-      {showPaymentModal && (
+      {paymentAssignmentId && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
           <div className="bg-card w-full max-w-md rounded-t-2xl p-6 space-y-5 animate-in slide-in-from-bottom">
             <div className="flex items-center justify-between">
               <h3 className="font-heading font-bold text-lg text-foreground">Payment Method</h3>
-              <button onClick={() => { setShowPaymentModal(false); setUpiScreenshot(null); setUpiPreview(null); }}>
+              <button onClick={() => { setPaymentAssignmentId(null); setUpiScreenshot(null); setUpiPreview(null); }}>
                 <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
             <p className="text-sm text-muted-foreground">How did the customer pay?</p>
 
-            {/* Cash option */}
             <Button
-              onClick={() => submitDelivery("cash")}
+              onClick={() => submitDelivery(paymentAssignmentId, "cash")}
               disabled={submitting}
               className="w-full h-12 text-base font-semibold gap-2"
               variant="outline"
@@ -480,7 +502,6 @@ export default function Dashboard() {
               {submitting ? "Submitting..." : "Cash Collected"}
             </Button>
 
-            {/* UPI option */}
             <div className="space-y-3 border border-border rounded-xl p-4">
               <p className="text-sm font-medium text-foreground">UPI Payment by Customer</p>
               <p className="text-xs text-muted-foreground">Take a photo of payment confirmation for manager review</p>
@@ -515,7 +536,7 @@ export default function Dashboard() {
               )}
 
               <Button
-                onClick={() => submitDelivery("upi")}
+                onClick={() => submitDelivery(paymentAssignmentId, "upi")}
                 disabled={submitting || !upiScreenshot}
                 className="w-full h-12 text-base font-semibold gap-2 bg-success hover:bg-success/90"
               >

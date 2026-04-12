@@ -496,7 +496,7 @@ export default function Dashboard() {
             </div>
 
             {activeAssignments.map((assignment) => (
-              <Card key={assignment.id} className="overflow-hidden shadow-sm">
+              <Card key={assignment.id} className={`overflow-hidden shadow-sm ${assignment.status === "requested" ? "ring-2 ring-orange-500 animate-pulse" : ""}`}>
                 {/* Assignment header */}
                 <div className="px-4 py-3 bg-muted/50 border-b border-border flex items-center justify-between">
                   <div className="flex items-center gap-2">

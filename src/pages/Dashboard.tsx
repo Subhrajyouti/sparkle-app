@@ -88,6 +88,16 @@ export default function Dashboard() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Push notifications
+  usePushNotifications(partner?.id);
+
+  // Alarm sound: play when there are requested assignments
+  const hasRequestedOrders = useMemo(
+    () => activeAssignments?.some((a) => a.status === "requested") ?? false,
+    [activeAssignments]
+  );
+  useAlarmSound(hasRequestedOrders);
+
   const { data: activeAssignments, isLoading } = useQuery({
     queryKey: ["active-assignments", partner?.id],
     queryFn: async (): Promise<Assignment[]> => {

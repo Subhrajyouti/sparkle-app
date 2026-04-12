@@ -156,6 +156,13 @@ export default function Dashboard() {
     refetchInterval: 5000,
   });
 
+  // Alarm sound: play when there are requested assignments
+  const hasRequestedOrders = useMemo(
+    () => activeAssignments?.some((a) => a.status === "requested") ?? false,
+    [activeAssignments]
+  );
+  useAlarmSound(hasRequestedOrders);
+
   const { data: todayStats } = useQuery({
     queryKey: ["today-stats", partner?.id],
     queryFn: async () => {

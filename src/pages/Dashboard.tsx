@@ -338,6 +338,39 @@ export default function Dashboard() {
   const submitDelivery = async (daoId: string, assignmentId: string, paymentMode: "cash" | "upi") => {
     setSubmitting(true);
 
+    // Optimistic: mark the order as delivered in UI immediately
+    const currentAssignments = queryClient.getQueryData<Assignment[]>(["active-assignments", partner?.id]);
+    const assignment = currentAssignments?.find((a) => a.id === assignmentId);
+    const allWillBeDelivered = assignment?.orders.every((o) => o.dao_status === "delivered" || o.dao_id === daoId);
+
+    queryClient.setQueryData<Assignment[]>(["active-assignments", partner?.id], (old) => {
+      if (!old) return old;
+      if (allWillBeDelivered) {
+        // Remove entire assignment from active list
+        return old.filter((a) => a.id !== assignmentId);
+      }
+      // Just mark this order as delivered
+      return old.map((a) => {
+        if (a.id !== assignmentId) return a;
+        return {
+          ...a,
+          orders: a.orders.map((o) =>
+            o.dao_id === daoId ? { ...o, dao_status: "delivered" } : o
+          ),
+        };
+      });
+    });
+
+    toast.success(allWillBeDelivered ? "All orders delivered! 🎉" : "Order delivered! ✅");
+    setPaymentOrderDaoId(null);
+    setPaymentAssignmentId(null);
+    setSubmitting(false);
+
+    if (allWillBeDelivered) {
+      queryClient.invalidateQueries({ queryKey: ["today-stats"] });
+    }
+
+    // Background: upload & persist
     let screenshotPath: string | null = null;
 
     if (paymentMode === "upi" && upiScreenshot) {
@@ -345,39 +378,18 @@ export default function Dashboard() {
       const { error: uploadError } = await supabase.storage
         .from("delivery-proofs")
         .upload(fileName, upiScreenshot, { contentType: "image/jpeg" });
-      if (uploadError) {
-        toast.error("Failed to upload UPI screenshot");
-        setSubmitting(false);
-        return;
-      }
-      screenshotPath = fileName;
+      if (!uploadError) screenshotPath = fileName;
     }
 
-    // Mark this specific order as delivered
-    const { error } = await supabase
+    setUpiScreenshot(null);
+    setUpiPreview(null);
+
+    await supabase
       .from("delivery_assignment_orders")
-      .update({
-        status: "delivered",
-        delivered_at: new Date().toISOString(),
-      })
+      .update({ status: "delivered", delivered_at: new Date().toISOString() })
       .eq("id", daoId);
 
-    if (error) {
-      toast.error("Failed to mark delivered");
-      setSubmitting(false);
-      return;
-    }
-
-    // Check if all orders in this assignment are now delivered
-    const { data: remainingOrders } = await supabase
-      .from("delivery_assignment_orders")
-      .select("id, status")
-      .eq("assignment_id", assignmentId);
-
-    const allDelivered = remainingOrders?.every((o) => o.status === "delivered" || o.id === daoId);
-
-    if (allDelivered) {
-      // Mark the whole assignment as delivered
+    if (allWillBeDelivered) {
       await supabase
         .from("delivery_assignments")
         .update({
@@ -389,15 +401,6 @@ export default function Dashboard() {
         })
         .eq("id", assignmentId);
     }
-
-    setSubmitting(false);
-    toast.success(allDelivered ? "All orders delivered! 🎉" : "Order delivered! ✅");
-    setPaymentOrderDaoId(null);
-    setPaymentAssignmentId(null);
-    setUpiScreenshot(null);
-    setUpiPreview(null);
-    queryClient.invalidateQueries({ queryKey: ["active-assignments"] });
-    queryClient.invalidateQueries({ queryKey: ["today-stats"] });
   };
 
   if (!partner) return null;

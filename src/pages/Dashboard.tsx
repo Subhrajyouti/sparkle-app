@@ -500,6 +500,9 @@ export default function Dashboard() {
                 {/* Assignment header */}
                 <div className="px-4 py-3 bg-muted/50 border-b border-border flex items-center justify-between">
                   <div className="flex items-center gap-2">
+                    {assignment.status === "requested" && (
+                      <BellRing className="w-4 h-4 text-orange-500 animate-bounce" />
+                    )}
                     <Badge className={`${statusColor[assignment.status] || ""} text-white border-0 text-[10px]`}>
                       {statusLabel[assignment.status] || assignment.status}
                     </Badge>

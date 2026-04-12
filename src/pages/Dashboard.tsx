@@ -207,16 +207,33 @@ export default function Dashboard() {
     setToggling(false);
   };
 
+  const optimisticUpdate = (assignmentId: string, updater: (a: Assignment) => Assignment | null) => {
+    queryClient.setQueryData<Assignment[]>(["active-assignments", partner?.id], (old) => {
+      if (!old) return old;
+      return old.map((a) => (a.id === assignmentId ? updater(a) : a)).filter(Boolean) as Assignment[];
+    });
+  };
+
   const acceptRequest = async (assignmentId: string, batchId: string | null) => {
     setUpdatingId(assignmentId);
-    // Accept this assignment (skip confirm, go straight to accepted)
+    // Optimistic: update status immediately
+    optimisticUpdate(assignmentId, (a) => ({ ...a, status: "accepted" }));
+    // Also remove other batch assignments optimistically
+    if (batchId) {
+      queryClient.setQueryData<Assignment[]>(["active-assignments", partner?.id], (old) => {
+        if (!old) return old;
+        return old.filter((a) => a.id === assignmentId || a.batch_id !== batchId || a.status !== "requested");
+      });
+    }
+    toast.success("Order accepted! 🎉");
+    setUpdatingId(null);
+
     const { error } = await supabase
       .from("delivery_assignments")
       .update({ status: "accepted", updated_at: new Date().toISOString() })
       .eq("id", assignmentId);
 
     if (!error && batchId) {
-      // Cancel other requests in the same batch
       await supabase
         .from("delivery_assignments")
         .update({ status: "cancelled", updated_at: new Date().toISOString() })
@@ -225,54 +242,60 @@ export default function Dashboard() {
         .eq("status", "requested");
     }
 
-    setUpdatingId(null);
-    if (!error) {
-      toast.success("Order accepted! 🎉");
-      queryClient.invalidateQueries({ queryKey: ["active-assignments"] });
-    } else {
+    if (error) {
       toast.error("Failed to accept order");
+      queryClient.invalidateQueries({ queryKey: ["active-assignments"] });
     }
   };
 
   const rejectRequest = async (assignmentId: string) => {
     setUpdatingId(assignmentId);
+    // Optimistic: remove from list
+    queryClient.setQueryData<Assignment[]>(["active-assignments", partner?.id], (old) =>
+      old?.filter((a) => a.id !== assignmentId)
+    );
+    toast.success("Order rejected");
+    setUpdatingId(null);
+
     const { error } = await supabase
       .from("delivery_assignments")
       .update({ status: "rejected", updated_at: new Date().toISOString() })
       .eq("id", assignmentId);
 
-    setUpdatingId(null);
-    if (!error) {
-      toast.success("Order rejected");
-      queryClient.invalidateQueries({ queryKey: ["active-assignments"] });
-    } else {
+    if (error) {
       toast.error("Failed to reject order");
+      queryClient.invalidateQueries({ queryKey: ["active-assignments"] });
     }
   };
 
   const updateAssignmentStatus = async (assignmentId: string, newStatus: "accepted" | "picked_up") => {
     setUpdatingId(assignmentId);
-    const updateData = {
+    const now = new Date().toISOString();
+    // Optimistic update
+    optimisticUpdate(assignmentId, (a) => ({
+      ...a,
       status: newStatus,
-      updated_at: new Date().toISOString(),
-      ...(newStatus === "picked_up" ? { picked_up_at: new Date().toISOString() } : {}),
+      ...(newStatus === "picked_up" ? { picked_up_at: now } : {}),
+    }));
+    const messages: Record<string, string> = {
+      accepted: "Order accepted! Head to kitchen 🏃",
+      picked_up: "Order picked up! On the way 🚴",
     };
+    toast.success(messages[newStatus]);
+    setUpdatingId(null);
 
     const { error } = await supabase
       .from("delivery_assignments")
-      .update(updateData)
+      .update({
+        status: newStatus,
+        updated_at: now,
+        ...(newStatus === "picked_up" ? { picked_up_at: now } : {}),
+      })
       .eq("id", assignmentId);
 
-    setUpdatingId(null);
-    if (!error) {
-      const messages: Record<string, string> = {
-        accepted: "Order accepted! Head to kitchen 🏃",
-        picked_up: "Order picked up! On the way 🚴",
-      };
-      toast.success(messages[newStatus]);
-      queryClient.invalidateQueries({ queryKey: ["active-assignments"] });
-    } else {
+    if (error) {
       toast.error("Failed to update status");
+      queryClient.invalidateQueries({ queryKey: ["active-assignments"] });
     }
   };
 

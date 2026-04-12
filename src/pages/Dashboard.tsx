@@ -1,9 +1,7 @@
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { usePartner } from "@/hooks/usePartner";
-import { useAlarmSound } from "@/hooks/useAlarmSound";
-import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   Phone, MapPin, IndianRupee, Package, Clock, CheckCircle2,
-  LogOut, History, Bike, Camera, X, Timer, BellRing
+  LogOut, History, Bike, Camera, X, Timer
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -88,9 +86,6 @@ export default function Dashboard() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Push notifications
-  usePushNotifications(partner?.id);
-
   const { data: activeAssignments, isLoading } = useQuery({
     queryKey: ["active-assignments", partner?.id],
     queryFn: async (): Promise<Assignment[]> => {
@@ -155,13 +150,6 @@ export default function Dashboard() {
     enabled: !!partner,
     refetchInterval: 5000,
   });
-
-  // Alarm sound: play when there are requested assignments
-  const hasRequestedOrders = useMemo(
-    () => activeAssignments?.some((a) => a.status === "requested") ?? false,
-    [activeAssignments]
-  );
-  useAlarmSound(hasRequestedOrders);
 
   const { data: todayStats } = useQuery({
     queryKey: ["today-stats", partner?.id],
@@ -496,13 +484,10 @@ export default function Dashboard() {
             </div>
 
             {activeAssignments.map((assignment) => (
-              <Card key={assignment.id} className={`overflow-hidden shadow-sm ${assignment.status === "requested" ? "ring-2 ring-orange-500 animate-pulse" : ""}`}>
+              <Card key={assignment.id} className="overflow-hidden shadow-sm">
                 {/* Assignment header */}
                 <div className="px-4 py-3 bg-muted/50 border-b border-border flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    {assignment.status === "requested" && (
-                      <BellRing className="w-4 h-4 text-orange-500 animate-bounce" />
-                    )}
                     <Badge className={`${statusColor[assignment.status] || ""} text-white border-0 text-[10px]`}>
                       {statusLabel[assignment.status] || assignment.status}
                     </Badge>

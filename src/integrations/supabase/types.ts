@@ -870,7 +870,6 @@ export type Database = {
           endpoint: string
           id: string
           p256dh: string
-          partner_id: string | null
         }
         Insert: {
           auth: string
@@ -878,7 +877,6 @@ export type Database = {
           endpoint: string
           id?: string
           p256dh: string
-          partner_id?: string | null
         }
         Update: {
           auth?: string
@@ -886,17 +884,8 @@ export type Database = {
           endpoint?: string
           id?: string
           p256dh?: string
-          partner_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "push_subscriptions_partner_id_fkey"
-            columns: ["partner_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_partners"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       raw_materials: {
         Row: {

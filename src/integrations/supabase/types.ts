@@ -644,8 +644,8 @@ export type Database = {
         Row: {
           accepted_at: string | null
           created_at: string
-          customer_name: string
-          customer_phone: string
+          customer_name: string | null
+          customer_phone: string | null
           delivery_partner_id: string | null
           id: string
           location_lat: number | null
@@ -653,6 +653,7 @@ export type Database = {
           location_text: string | null
           notes: string | null
           order_code: string | null
+          order_type: string
           payment_mode: string
           ready_at: string | null
           status: string
@@ -663,8 +664,8 @@ export type Database = {
         Insert: {
           accepted_at?: string | null
           created_at?: string
-          customer_name: string
-          customer_phone: string
+          customer_name?: string | null
+          customer_phone?: string | null
           delivery_partner_id?: string | null
           id?: string
           location_lat?: number | null
@@ -672,6 +673,7 @@ export type Database = {
           location_text?: string | null
           notes?: string | null
           order_code?: string | null
+          order_type?: string
           payment_mode?: string
           ready_at?: string | null
           status?: string
@@ -682,8 +684,8 @@ export type Database = {
         Update: {
           accepted_at?: string | null
           created_at?: string
-          customer_name?: string
-          customer_phone?: string
+          customer_name?: string | null
+          customer_phone?: string | null
           delivery_partner_id?: string | null
           id?: string
           location_lat?: number | null
@@ -691,6 +693,7 @@ export type Database = {
           location_text?: string | null
           notes?: string | null
           order_code?: string | null
+          order_type?: string
           payment_mode?: string
           ready_at?: string | null
           status?: string

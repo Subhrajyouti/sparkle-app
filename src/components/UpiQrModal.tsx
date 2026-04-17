@@ -52,7 +52,7 @@ export function UpiQrModal({ open, onClose, orderCode, customerName, amount, ite
           <div>
             <h3 className="font-heading font-bold text-lg text-foreground">Scan to Pay</h3>
             <p className="text-xs text-muted-foreground">
-              {customerName} · Order #{orderCode ? orderCode.slice(-4) : "----"}
+              Order #{orderCode ? orderCode.slice(-4) : "----"}
             </p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">

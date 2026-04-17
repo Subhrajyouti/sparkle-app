@@ -12,9 +12,10 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   Phone, MapPin, IndianRupee, Package, Clock, CheckCircle2,
-  LogOut, History, Bike, Camera, X, Timer, BellRing
+  LogOut, History, Bike, Camera, X, Timer, BellRing, QrCode
 } from "lucide-react";
 import { format } from "date-fns";
+import { UpiQrModal } from "@/components/UpiQrModal";
 
 function LiveTimer({ since }: { since: string }) {
   const [elapsed, setElapsed] = useState("");
@@ -86,6 +87,7 @@ export default function Dashboard() {
   const [upiPreview, setUpiPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [qrOrder, setQrOrder] = useState<KitchenOrder | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Push notifications
@@ -547,6 +549,13 @@ export default function Dashboard() {
                             <p className="text-[10px] text-muted-foreground">Cash</p>
                             <p className="text-sm font-heading font-bold text-foreground">₹{order.total_amount}</p>
                           </div>
+                          <button
+                            onClick={() => setQrOrder(order)}
+                            title="Show payment QR"
+                            className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center hover:bg-primary/20 transition-colors"
+                          >
+                            <QrCode className="w-3.5 h-3.5 text-primary" />
+                          </button>
                           <a
                             href={`tel:${order.customer_phone}`}
                             className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center"
@@ -739,6 +748,16 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* UPI QR Modal */}
+      <UpiQrModal
+        open={!!qrOrder}
+        onClose={() => setQrOrder(null)}
+        orderCode={qrOrder?.order_code ?? null}
+        customerName={qrOrder?.customer_name ?? ""}
+        amount={qrOrder?.total_amount ?? 0}
+        items={qrOrder?.items ?? []}
+      />
 
       {/* Bottom Nav */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-4 py-2 flex items-center justify-around safe-bottom z-40">

@@ -571,6 +571,41 @@ export type Database = {
           },
         ]
       }
+      fcm_tokens: {
+        Row: {
+          created_at: string
+          id: string
+          partner_id: string | null
+          platform: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          partner_id?: string | null
+          platform?: string
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          partner_id?: string | null
+          platform?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fcm_tokens_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       item_images: {
         Row: {
           created_at: string
@@ -643,6 +678,7 @@ export type Database = {
       kitchen_orders: {
         Row: {
           accepted_at: string | null
+          call_number: string | null
           created_at: string
           customer_name: string | null
           customer_phone: string | null
@@ -663,6 +699,7 @@ export type Database = {
         }
         Insert: {
           accepted_at?: string | null
+          call_number?: string | null
           created_at?: string
           customer_name?: string | null
           customer_phone?: string | null
@@ -683,6 +720,7 @@ export type Database = {
         }
         Update: {
           accepted_at?: string | null
+          call_number?: string | null
           created_at?: string
           customer_name?: string | null
           customer_phone?: string | null

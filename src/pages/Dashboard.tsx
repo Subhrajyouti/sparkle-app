@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   Phone, MapPin, IndianRupee, Package, Clock, CheckCircle2,
-  LogOut, History, Bike, Camera, X, Timer, BellRing, QrCode
+  LogOut, History, Bike, Camera, X, Timer, BellRing, QrCode, Navigation
 } from "lucide-react";
 import { format } from "date-fns";
 import { UpiQrModal } from "@/components/UpiQrModal";
@@ -94,8 +94,14 @@ export default function Dashboard() {
   // Push notifications
   usePushNotifications(partner?.id);
 
-  // Live location sharing — active whenever rider is online
-  useLiveLocation(partner?.id, !!partner?.is_active);
+  // Live location sharing — toggleable independently, persisted across reloads
+  const [shareLocation, setShareLocation] = useState<boolean>(() => {
+    return localStorage.getItem("share_location") !== "false";
+  });
+  useEffect(() => {
+    localStorage.setItem("share_location", String(shareLocation));
+  }, [shareLocation]);
+  const liveLocation = useLiveLocation(partner?.id, shareLocation && !!partner?.is_active);
 
   const { data: activeAssignments, isLoading } = useQuery({
     queryKey: ["active-assignments", partner?.id],
@@ -458,6 +464,40 @@ export default function Dashboard() {
             </span>
             <Switch checked={partner.is_active} onCheckedChange={toggleOnline} disabled={toggling} />
           </div>
+        </div>
+
+        {/* Live location toggle */}
+        <div className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Navigation
+              className={`w-4 h-4 shrink-0 ${
+                liveLocation.status === "active"
+                  ? "text-success animate-pulse"
+                  : liveLocation.status === "error" || liveLocation.status === "unsupported"
+                  ? "text-destructive"
+                  : "text-muted-foreground"
+              }`}
+            />
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-foreground">Share live location</p>
+              <p className="text-[10px] text-muted-foreground truncate">
+                {!partner.is_active
+                  ? "Go online to start sharing"
+                  : !shareLocation
+                  ? "Off"
+                  : liveLocation.status === "active"
+                  ? `Sharing • updated ${liveLocation.lastUpdate ? format(liveLocation.lastUpdate, "HH:mm:ss") : "—"}`
+                  : liveLocation.status === "requesting"
+                  ? "Requesting GPS…"
+                  : liveLocation.status === "error"
+                  ? liveLocation.errorMsg || "Error"
+                  : liveLocation.status === "unsupported"
+                  ? "Not supported on this device"
+                  : "Idle"}
+              </p>
+            </div>
+          </div>
+          <Switch checked={shareLocation} onCheckedChange={setShareLocation} />
         </div>
       </div>
 

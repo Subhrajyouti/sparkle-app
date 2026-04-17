@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error("Error:", e);
-    return new Response(JSON.stringify({ error: e.message }), {
+    return new Response(JSON.stringify({ error: (e as Error).message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -227,7 +227,7 @@ async function encryptPayload(
   // Import subscriber public key
   const subscriberKey = await crypto.subtle.importKey(
     "raw",
-    subscriberPublicKeyBytes,
+    subscriberPublicKeyBytes.buffer.slice(subscriberPublicKeyBytes.byteOffset, subscriberPublicKeyBytes.byteOffset + subscriberPublicKeyBytes.byteLength) as ArrayBuffer,
     { name: "ECDH", namedCurve: "P-256" },
     false,
     []
@@ -272,7 +272,7 @@ async function encryptPayload(
   // Encrypt with AES-GCM
   const aesKey = await crypto.subtle.importKey(
     "raw",
-    contentEncryptionKey,
+    contentEncryptionKey.buffer.slice(contentEncryptionKey.byteOffset, contentEncryptionKey.byteOffset + contentEncryptionKey.byteLength) as ArrayBuffer,
     "AES-GCM",
     false,
     ["encrypt"]
@@ -283,9 +283,9 @@ async function encryptPayload(
 
   const encrypted = new Uint8Array(
     await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv: nonce },
+      { name: "AES-GCM", iv: nonce.buffer.slice(nonce.byteOffset, nonce.byteOffset + nonce.byteLength) as ArrayBuffer },
       aesKey,
-      paddedPayload
+      paddedPayload.buffer.slice(paddedPayload.byteOffset, paddedPayload.byteOffset + paddedPayload.byteLength) as ArrayBuffer
     )
   );
 
@@ -314,13 +314,13 @@ function concatBuffers(...buffers: Uint8Array[]): Uint8Array {
 }
 
 async function hkdfExtract(salt: Uint8Array, ikm: Uint8Array): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey("raw", salt, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  return new Uint8Array(await crypto.subtle.sign("HMAC", key, ikm));
+  const key = await crypto.subtle.importKey("raw", salt.buffer.slice(salt.byteOffset, salt.byteOffset + salt.byteLength) as ArrayBuffer, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return new Uint8Array(await crypto.subtle.sign("HMAC", key, ikm.buffer.slice(ikm.byteOffset, ikm.byteOffset + ikm.byteLength) as ArrayBuffer));
 }
 
 async function hkdfExpand(prk: Uint8Array, info: Uint8Array, length: number): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey("raw", prk, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const key = await crypto.subtle.importKey("raw", prk.buffer.slice(prk.byteOffset, prk.byteOffset + prk.byteLength) as ArrayBuffer, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const input = concatBuffers(info, new Uint8Array([1]));
-  const output = new Uint8Array(await crypto.subtle.sign("HMAC", key, input));
+  const output = new Uint8Array(await crypto.subtle.sign("HMAC", key, input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength) as ArrayBuffer));
   return output.slice(0, length);
 }

@@ -94,6 +94,9 @@ export default function Dashboard() {
   // Push notifications
   usePushNotifications(partner?.id);
 
+  // Live location sharing — active whenever rider is online
+  useLiveLocation(partner?.id, !!partner?.is_active);
+
   const { data: activeAssignments, isLoading } = useQuery({
     queryKey: ["active-assignments", partner?.id],
     queryFn: async (): Promise<Assignment[]> => {

@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePartner } from "@/hooks/usePartner";
 import { useAlarmSound } from "@/hooks/useAlarmSound";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useLiveLocation } from "@/hooks/useLiveLocation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -92,6 +93,9 @@ export default function Dashboard() {
 
   // Push notifications
   usePushNotifications(partner?.id);
+
+  // Live location sharing — active whenever rider is online
+  useLiveLocation(partner?.id, !!partner?.is_active);
 
   const { data: activeAssignments, isLoading } = useQuery({
     queryKey: ["active-assignments", partner?.id],

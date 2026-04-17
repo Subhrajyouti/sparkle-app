@@ -822,6 +822,50 @@ export type Database = {
         }
         Relationships: []
       }
+      partner_locations: {
+        Row: {
+          accuracy: number | null
+          heading: number | null
+          is_online: boolean
+          latitude: number
+          longitude: number
+          partner_id: string
+          reported_at: string
+          speed: number | null
+          updated_at: string
+        }
+        Insert: {
+          accuracy?: number | null
+          heading?: number | null
+          is_online?: boolean
+          latitude: number
+          longitude: number
+          partner_id: string
+          reported_at?: string
+          speed?: number | null
+          updated_at?: string
+        }
+        Update: {
+          accuracy?: number | null
+          heading?: number | null
+          is_online?: boolean
+          latitude?: number
+          longitude?: number
+          partner_id?: string
+          reported_at?: string
+          speed?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_locations_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: true
+            referencedRelation: "delivery_partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       preprocessed_item_ingredients: {
         Row: {
           created_at: string

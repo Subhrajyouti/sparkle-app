@@ -549,6 +549,13 @@ export default function Dashboard() {
                             <p className="text-[10px] text-muted-foreground">Cash</p>
                             <p className="text-sm font-heading font-bold text-foreground">₹{order.total_amount}</p>
                           </div>
+                          <button
+                            onClick={() => setQrOrder(order)}
+                            title="Show payment QR"
+                            className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center hover:bg-primary/20 transition-colors"
+                          >
+                            <QrCode className="w-3.5 h-3.5 text-primary" />
+                          </button>
                           <a
                             href={`tel:${order.customer_phone}`}
                             className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center"

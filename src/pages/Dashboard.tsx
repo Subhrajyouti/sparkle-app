@@ -749,6 +749,16 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* UPI QR Modal */}
+      <UpiQrModal
+        open={!!qrOrder}
+        onClose={() => setQrOrder(null)}
+        orderCode={qrOrder?.order_code ?? null}
+        customerName={qrOrder?.customer_name ?? ""}
+        amount={qrOrder?.total_amount ?? 0}
+        items={qrOrder?.items ?? []}
+      />
+
       {/* Bottom Nav */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-4 py-2 flex items-center justify-around safe-bottom z-40">
         <button className="flex flex-col items-center gap-1 text-primary py-2 px-4">

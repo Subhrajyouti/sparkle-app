@@ -87,6 +87,7 @@ export default function Dashboard() {
   const [upiPreview, setUpiPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [qrOrder, setQrOrder] = useState<KitchenOrder | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Push notifications

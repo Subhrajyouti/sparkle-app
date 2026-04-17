@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePartner } from "@/hooks/usePartner";
 import { useAlarmSound } from "@/hooks/useAlarmSound";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useLiveLocation } from "@/hooks/useLiveLocation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";

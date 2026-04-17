@@ -12,9 +12,10 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   Phone, MapPin, IndianRupee, Package, Clock, CheckCircle2,
-  LogOut, History, Bike, Camera, X, Timer, BellRing
+  LogOut, History, Bike, Camera, X, Timer, BellRing, QrCode
 } from "lucide-react";
 import { format } from "date-fns";
+import { UpiQrModal } from "@/components/UpiQrModal";
 
 function LiveTimer({ since }: { since: string }) {
   const [elapsed, setElapsed] = useState("");

@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
   server: {
     // Loads your live website inside the native app shell.
     // Change to your production domain if you want the app to use that instead.
-    url: 'https://a781537c-1a15-49c0-b330-81a33a63309d.lovableproject.com?forceHideBadge=true',
+    url: 'https://delivery.khanismitarecipes.online',
     cleartext: true,
   },
   plugins: {

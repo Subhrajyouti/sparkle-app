@@ -3,6 +3,7 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useLiveLocation } from "./useLiveLocation";
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 export type NativeLiveLocationStatus = "idle" | "requesting" | "active" | "error" | "unsupported";
 
@@ -36,9 +37,9 @@ interface BackgroundGeolocationPlugin {
 
 /**
  * Hook that:
- *  - On native (Android/iOS via Capacitor) uses background-geolocation plugin
- *    so location keeps streaming even when the app is in background or screen off.
- *  - On web (browser) falls back to the existing useLiveLocation watchPosition hook.
+ * - On native (Android/iOS via Capacitor) uses background-geolocation plugin
+ * so location keeps streaming even when the app is in background or screen off.
+ * - On web (browser) falls back to the existing useLiveLocation watchPosition hook.
  */
 export function useNativeLiveLocation(partnerId: string | undefined, enabled: boolean) {
   const isNative = Capacitor.isNativePlatform();
@@ -92,6 +93,19 @@ export function useNativeLiveLocation(partnerId: string | undefined, enabled: bo
 
     (async () => {
       try {
+        // --- Added Notification Permission Check ---
+        const perms = await LocalNotifications.checkPermissions();
+        if (perms.display !== 'granted') {
+          const request = await LocalNotifications.requestPermissions();
+          if (request.display !== 'granted') {
+            toast.error("Notification permission is required to track location in the background.");
+            setStatus("error");
+            setErrorMsg("Notification permission denied");
+            return;
+          }
+        }
+        // --------------------------------------------
+
         const id = await BackgroundGeolocation.addWatcher(
           {
             backgroundMessage: "Sharing your location with Khanismita",

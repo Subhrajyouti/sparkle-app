@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePartner } from "@/hooks/usePartner";
 import { useAlarmSound } from "@/hooks/useAlarmSound";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
-import { useLiveLocation } from "@/hooks/useLiveLocation";
+import { useNativeLiveLocation } from "@/hooks/useNativeLiveLocation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -101,7 +101,7 @@ export default function Dashboard() {
   useEffect(() => {
     localStorage.setItem("share_location", String(shareLocation));
   }, [shareLocation]);
-  const liveLocation = useLiveLocation(partner?.id, shareLocation && !!partner?.is_active);
+  const liveLocation = useNativeLiveLocation(partner?.id, shareLocation && !!partner?.is_active);
 
   const { data: activeAssignments, isLoading } = useQuery({
     queryKey: ["active-assignments", partner?.id],

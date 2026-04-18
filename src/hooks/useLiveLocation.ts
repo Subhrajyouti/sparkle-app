@@ -1,17 +1,49 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 
 export type LiveLocationStatus = "idle" | "requesting" | "active" | "error" | "unsupported";
 
+// Native plugin interface (only used inside the Android/iOS app)
+interface BackgroundGeolocationPlugin {
+  addWatcher(
+    options: {
+      backgroundMessage?: string;
+      backgroundTitle?: string;
+      requestPermissions?: boolean;
+      stale?: boolean;
+      distanceFilter?: number;
+    },
+    callback: (
+      location?: {
+        latitude: number;
+        longitude: number;
+        accuracy: number;
+        speed: number | null;
+        bearing: number | null;
+        time: number;
+      },
+      error?: { code: string; message: string }
+    ) => void
+  ): Promise<string>;
+  removeWatcher(options: { id: string }): Promise<void>;
+  openSettings(): Promise<void>;
+}
+
+const BackgroundGeolocation =
+  Capacitor.isNativePlatform()
+    ? registerPlugin<BackgroundGeolocationPlugin>("BackgroundGeolocation")
+    : null;
+
 /**
  * Continuously shares the rider's GPS location while `enabled` is true.
- * - Uses watchPosition for accurate streaming
- * - Upserts into partner_locations (one row per partner)
- * - Marks rider offline when disabled or unmounted
+ * - On native (Capacitor) uses background-geolocation plugin (works with screen off)
+ * - On web falls back to navigator.geolocation.watchPosition (foreground only)
  */
 export function useLiveLocation(partnerId: string | undefined, enabled: boolean) {
   const watchIdRef = useRef<number | null>(null);
+  const nativeWatcherIdRef = useRef<string | null>(null);
   const lastSentRef = useRef<number>(0);
   const [status, setStatus] = useState<LiveLocationStatus>("idle");
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
@@ -19,13 +51,6 @@ export function useLiveLocation(partnerId: string | undefined, enabled: boolean)
 
   useEffect(() => {
     if (!partnerId) return;
-
-    const stopWatch = () => {
-      if (watchIdRef.current !== null && navigator.geolocation) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
-    };
 
     const markOffline = async () => {
       try {
@@ -38,6 +63,21 @@ export function useLiveLocation(partnerId: string | undefined, enabled: boolean)
       }
     };
 
+    const stopWatch = async () => {
+      if (watchIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      if (nativeWatcherIdRef.current && BackgroundGeolocation) {
+        try {
+          await BackgroundGeolocation.removeWatcher({ id: nativeWatcherIdRef.current });
+        } catch {
+          /* silent */
+        }
+        nativeWatcherIdRef.current = null;
+      }
+    };
+
     if (!enabled) {
       stopWatch();
       markOffline();
@@ -45,17 +85,14 @@ export function useLiveLocation(partnerId: string | undefined, enabled: boolean)
       return;
     }
 
-    if (!("geolocation" in navigator)) {
-      setStatus("unsupported");
-      setErrorMsg("Geolocation not supported on this device");
-      toast.error("Geolocation not supported on this device");
-      return;
-    }
-
-    setStatus("requesting");
-    setErrorMsg(null);
-
-    const handlePosition = async (pos: GeolocationPosition) => {
+    const pushLocation = async (
+      latitude: number,
+      longitude: number,
+      accuracy: number | null,
+      speed: number | null,
+      heading: number | null,
+      timestamp: number
+    ) => {
       setStatus("active");
       setLastUpdate(new Date());
 
@@ -64,7 +101,6 @@ export function useLiveLocation(partnerId: string | undefined, enabled: boolean)
       if (now - lastSentRef.current < 5000) return;
       lastSentRef.current = now;
 
-      const { latitude, longitude, accuracy, speed, heading } = pos.coords;
       const payload = {
         partner_id: partnerId,
         latitude,
@@ -73,7 +109,7 @@ export function useLiveLocation(partnerId: string | undefined, enabled: boolean)
         speed: speed ?? null,
         heading: heading ?? null,
         is_online: true,
-        reported_at: new Date(pos.timestamp).toISOString(),
+        reported_at: new Date(timestamp).toISOString(),
         updated_at: new Date().toISOString(),
       };
 
@@ -85,6 +121,78 @@ export function useLiveLocation(partnerId: string | undefined, enabled: boolean)
         console.error("Failed to push location", error);
         setErrorMsg(error.message);
       }
+    };
+
+    setStatus("requesting");
+    setErrorMsg(null);
+
+    // ---------- NATIVE PATH (Android / iOS) ----------
+    if (BackgroundGeolocation) {
+      BackgroundGeolocation.addWatcher(
+        {
+          backgroundMessage: "Sharing your live location with the kitchen",
+          backgroundTitle: "Delivery tracking active",
+          requestPermissions: true,
+          stale: false,
+          distanceFilter: 10, // metres — only fire when moved 10m
+        },
+        (location, error) => {
+          if (error) {
+            console.warn("Native geolocation error:", error);
+            // "NOT_AUTHORIZED" => user must grant background permission manually
+            if (error.code === "NOT_AUTHORIZED") {
+              toast.error(
+                "Background location not allowed. Tap settings and choose 'Allow all the time'.",
+                {
+                  action: {
+                    label: "Open settings",
+                    onClick: () => BackgroundGeolocation?.openSettings(),
+                  },
+                  duration: 10000,
+                }
+              );
+            } else {
+              toast.error(error.message);
+            }
+            setStatus("error");
+            setErrorMsg(error.message);
+            return;
+          }
+          if (!location) return;
+          pushLocation(
+            location.latitude,
+            location.longitude,
+            location.accuracy,
+            location.speed,
+            location.bearing,
+            location.time
+          );
+        }
+      ).then((id) => {
+        nativeWatcherIdRef.current = id;
+      }).catch((e) => {
+        console.error("Failed to start native watcher", e);
+        setStatus("error");
+        setErrorMsg(String(e?.message ?? e));
+      });
+
+      return () => {
+        stopWatch();
+        markOffline();
+      };
+    }
+
+    // ---------- WEB FALLBACK ----------
+    if (!("geolocation" in navigator)) {
+      setStatus("unsupported");
+      setErrorMsg("Geolocation not supported on this device");
+      toast.error("Geolocation not supported on this device");
+      return;
+    }
+
+    const handlePosition = (pos: GeolocationPosition) => {
+      const { latitude, longitude, accuracy, speed, heading } = pos.coords;
+      pushLocation(latitude, longitude, accuracy, speed, heading, pos.timestamp);
     };
 
     const handleError = (err: GeolocationPositionError) => {

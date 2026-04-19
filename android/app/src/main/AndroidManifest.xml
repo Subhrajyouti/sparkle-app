@@ -27,13 +27,11 @@
 
         <!-- Required by @capacitor-community/background-geolocation -->
         <service
-            android:name="com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService"
+            android:name=".LocationForegroundService"
             android:enabled="true"
-            android:exported="true"
+            android:exported="false"
             android:foregroundServiceType="location"
-            android:stopWithTask="false"
-            tools:replace="android:exported" />
-
+            android:stopWithTask="false" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

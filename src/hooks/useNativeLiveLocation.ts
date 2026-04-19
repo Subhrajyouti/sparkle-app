@@ -112,7 +112,7 @@ export function useNativeLiveLocation(partnerId: string | undefined, enabled: bo
             backgroundTitle: "Delivery tracking active",
             requestPermissions: true,
             stale: false,
-            distanceFilter: 10, // meters — only fire when moved at least 10m
+            distanceFilter: 0, // meters — only fire when moved at least 10m
           },
           async (location, error) => {
             if (error) {

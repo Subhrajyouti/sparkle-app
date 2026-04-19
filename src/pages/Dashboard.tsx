@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { UpiQrModal } from "@/components/UpiQrModal";
-import logo from "@/assets/logo.png";
+
 function LiveTimer({ since }: { since: string }) {
   const [elapsed, setElapsed] = useState("");
   useEffect(() => {
@@ -38,7 +38,7 @@ function LiveTimer({ since }: { since: string }) {
     </span>
   );
 }
-
+import logo from "@/assets/logo.png";
 
 interface KitchenOrderItem {
   id: string;
@@ -466,15 +466,13 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Live location toggle */}
+                {/* Live location toggle */}
         <div className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
           <div className="flex items-center gap-2 min-w-0">
             <Navigation
               className={`w-4 h-4 shrink-0 ${
-                liveLocation.status === "active"
+                shareLocation && partner.is_active
                   ? "text-success animate-pulse"
-                  : liveLocation.status === "error" || liveLocation.status === "unsupported"
-                  ? "text-destructive"
                   : "text-muted-foreground"
               }`}
             />
@@ -483,17 +481,9 @@ export default function Dashboard() {
               <p className="text-[10px] text-muted-foreground truncate">
                 {!partner.is_active
                   ? "Go online to start sharing"
-                  : !shareLocation
-                  ? "Off"
-                  : liveLocation.status === "active"
-                  ? `Sharing • updated ${liveLocation.lastUpdate ? format(liveLocation.lastUpdate, "HH:mm:ss") : "—"}`
-                  : liveLocation.status === "requesting"
-                  ? "Requesting GPS…"
-                  : liveLocation.status === "error"
-                  ? liveLocation.errorMsg || "Error"
-                  : liveLocation.status === "unsupported"
-                  ? "Not supported on this device"
-                  : "Idle"}
+                  : shareLocation
+                  ? "Sharing location in background"
+                  : "Off"}
               </p>
             </div>
           </div>

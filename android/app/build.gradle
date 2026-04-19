@@ -1,5 +1,4 @@
 apply plugin: 'com.android.application'
-
 android {
     namespace = "app.lovable.a781537c1a1549c0b33081a33a63309d"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -17,11 +16,12 @@ android {
         }
     }
     buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-        }
+    release {
+        minifyEnabled false
+        // Change 'proguard-android.txt' to 'proguard-android-optimize.txt'
+        proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
     }
+}
 }
 
 repositories {
@@ -40,6 +40,7 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    implementation 'com.google.android.gms:play-services-location:21.0.1'
 }
 
 apply from: 'capacitor.build.gradle'

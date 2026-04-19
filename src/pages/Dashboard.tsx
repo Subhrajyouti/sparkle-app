@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { UpiQrModal } from "@/components/UpiQrModal";
-
+import logo from "@/assets/logo.png";
 function LiveTimer({ since }: { since: string }) {
   const [elapsed, setElapsed] = useState("");
   useEffect(() => {
@@ -38,7 +38,7 @@ function LiveTimer({ since }: { since: string }) {
     </span>
   );
 }
-import logo from "@/assets/logo.png";
+
 
 interface KitchenOrderItem {
   id: string;

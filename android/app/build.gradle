@@ -1,5 +1,4 @@
 apply plugin: 'com.android.application'
-apply plugin: 'com.google.gms.google-services' 
 android {
     namespace = "app.lovable.a781537c1a1549c0b33081a33a63309d"
     compileSdk = rootProject.ext.compileSdkVersion

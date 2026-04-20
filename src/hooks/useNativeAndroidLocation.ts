@@ -14,7 +14,7 @@ const NativeLocation = registerPlugin<NativeLocationPlugin>("NativeLocation");
 
 // Your Supabase URL and anon key — same as in your client.ts
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
 export function useNativeAndroidLocation(
   partnerId: string | undefined,

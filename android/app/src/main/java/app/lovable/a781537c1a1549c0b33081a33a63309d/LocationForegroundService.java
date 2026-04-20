@@ -20,13 +20,16 @@ public class LocationForegroundService extends Service {
     private static final String CHANNEL_ID = "location_channel";
     private static final int NOTIF_ID = 1001;
 
+    private static final String SUPABASE_URL = "https://opcnbtnoefrchzdaabbt.supabase.co";
+    private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wY25idG5vZWZyY2h6ZGFhYmJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1NTQ2ODgsImV4cCI6MjA4ODEzMDY4OH0.i-SPRe-H8dh-FWhMrCmA_6lKWiyfz20wRQ-KUS8iQJE";
+
+
     private FusedLocationProviderClient fusedClient;
     private LocationCallback locationCallback;
 
     // Persisted so START_STICKY restart doesn't lose them
     private static String sPartnerId;
-    private static String sSupabaseUrl;
-    private static String sSupabaseKey;
+   
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -59,6 +62,7 @@ public class LocationForegroundService extends Service {
     private void startLocationUpdates() {
         fusedClient = LocationServices.getFusedLocationProviderClient(this);
 
+
         LocationRequest request = new LocationRequest.Builder(
             Priority.PRIORITY_HIGH_ACCURACY, 10000L)
             .setMinUpdateIntervalMillis(5000L)
@@ -85,7 +89,7 @@ public class LocationForegroundService extends Service {
     }
 
     private void pushToSupabase(final Location loc) {
-        if (sPartnerId == null || sSupabaseUrl == null || sSupabaseKey == null) {
+        if (PartnerId == null || SUPABASE_URL == null || SUPABASE_KEY == null) {
             Log.e(TAG, "Missing credentials — cannot push location");
             return;
         }

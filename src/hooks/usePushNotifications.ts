@@ -8,13 +8,10 @@ export function usePushNotifications(partnerId: string | undefined) {
     if (!partnerId || !Capacitor.isNativePlatform()) return;
 
     const register = async () => {
-      const permResult = await PushNotifications.requestPermissions();
-      if (permResult.receive !== "granted") return;
-
-      await PushNotifications.register();
-
+      // ✅ Add listeners FIRST before calling register()
       PushNotifications.addListener("registration", async (token) => {
         console.log("FCM token:", token.value);
+        alert("Got token: " + token.value.substring(0, 20) + "..."); // temp debug
         const { error } = await supabase
           .from("fcm_tokens")
           .upsert(
@@ -26,12 +23,17 @@ export function usePushNotifications(partnerId: string | undefined) {
             },
             { onConflict: "token" }
           );
-        if (error) console.error("Failed to save FCM token:", error);
-        else console.log("FCM token saved for partner:", partnerId);
+        if (error) {
+          console.error("Failed to save FCM token:", error);
+          alert("DB error: " + error.message);
+        } else {
+          console.log("FCM token saved for partner:", partnerId);
+        }
       });
 
       PushNotifications.addListener("registrationError", (err) => {
-        console.error("FCM registration error:", err);
+        console.error("FCM registration error:", JSON.stringify(err));
+        alert("FCM Error: " + JSON.stringify(err));
       });
 
       PushNotifications.addListener("pushNotificationReceived", (notification) => {
@@ -41,11 +43,15 @@ export function usePushNotifications(partnerId: string | undefined) {
       PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
         console.log("Notification tapped:", action);
       });
-      PushNotifications.addListener("registrationError", (err) => {
-        console.error("FCM registration error:", JSON.stringify(err));
-  // Also show as alert so you see it on device
-        alert("FCM Error: " + JSON.stringify(err));
-      });
+
+      // ✅ Request permission then register AFTER listeners are ready
+      const permResult = await PushNotifications.requestPermissions();
+      if (permResult.receive !== "granted") {
+        alert("Push permission denied");
+        return;
+      }
+
+      await PushNotifications.register();
     };
 
     register();

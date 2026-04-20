@@ -8,10 +8,9 @@ export function usePushNotifications(partnerId: string | undefined) {
     if (!partnerId || !Capacitor.isNativePlatform()) return;
 
     const register = async () => {
-      // ✅ Add listeners FIRST before calling register()
+      // Listeners MUST be added before calling register()
       PushNotifications.addListener("registration", async (token) => {
         console.log("FCM token:", token.value);
-        alert("Got token: " + token.value.substring(0, 20) + "..."); // temp debug
         const { error } = await supabase
           .from("fcm_tokens")
           .upsert(
@@ -25,7 +24,6 @@ export function usePushNotifications(partnerId: string | undefined) {
           );
         if (error) {
           console.error("Failed to save FCM token:", error);
-          alert("DB error: " + error.message);
         } else {
           console.log("FCM token saved for partner:", partnerId);
         }
@@ -33,21 +31,22 @@ export function usePushNotifications(partnerId: string | undefined) {
 
       PushNotifications.addListener("registrationError", (err) => {
         console.error("FCM registration error:", JSON.stringify(err));
-        alert("FCM Error: " + JSON.stringify(err));
       });
 
+      // Foreground: notification arrives while app is open
+      // The useAlarmSound hook handles the alarm — nothing extra needed here
       PushNotifications.addListener("pushNotificationReceived", (notification) => {
         console.log("Foreground notification:", notification);
       });
 
+      // User tapped the notification
       PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
         console.log("Notification tapped:", action);
       });
 
-      // ✅ Request permission then register AFTER listeners are ready
       const permResult = await PushNotifications.requestPermissions();
       if (permResult.receive !== "granted") {
-        alert("Push permission denied");
+        console.warn("Push permission denied");
         return;
       }
 

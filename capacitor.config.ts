@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.lovable.39afa90892844e8e8447bbbc33d8c9a4',
+  appId: 'app.lovable.a781537c1a1549c0b33081a33a63309d',
   appName: 'Khanismita Delivery',
   webDir: 'dist',
   

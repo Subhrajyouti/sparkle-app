@@ -41,6 +41,11 @@ export function usePushNotifications(partnerId: string | undefined) {
       PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
         console.log("Notification tapped:", action);
       });
+      PushNotifications.addListener("registrationError", (err) => {
+        console.error("FCM registration error:", JSON.stringify(err));
+  // Also show as alert so you see it on device
+        alert("FCM Error: " + JSON.stringify(err));
+      });
     };
 
     register();

@@ -56,7 +56,7 @@ export function useLiveLocation(partnerId: string | undefined, enabled: boolean)
       try {
         await supabase
           .from("partner_locations")
-          .update({ is_online: false, updated_at: new Date().toISOString() })
+          .update({ is_online: false })
           .eq("partner_id", partnerId);
       } catch {
         /* silent */

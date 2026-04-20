@@ -23,27 +23,26 @@ public class LocationForegroundService extends Service {
     private static final String SUPABASE_URL = "https://opcnbtnoefrchzdaabbt.supabase.co";
     private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wY25idG5vZWZyY2h6ZGFhYmJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1NTQ2ODgsImV4cCI6MjA4ODEzMDY4OH0.i-SPRe-H8dh-FWhMrCmA_6lKWiyfz20wRQ-KUS8iQJE";
 
-
     private FusedLocationProviderClient fusedClient;
     private LocationCallback locationCallback;
-
-    // Persisted so START_STICKY restart doesn't lose them
-    private static String sPartnerId;
-   
+    private String partnerId;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        // When Android restarts a START_STICKY service, intent can be null
+        // Save partner_id to SharedPreferences so START_STICKY restart can read it
         if (intent != null) {
             String pid = intent.getStringExtra("partner_id");
-            String url = intent.getStringExtra("supabase_url");
-            String key = intent.getStringExtra("supabase_key");
-            if (pid != null) sPartnerId  = pid;
-            if (url != null) sSupabaseUrl = url;
-            if (key != null) sSupabaseKey = key;
+            if (pid != null) {
+                getSharedPreferences("location_prefs", MODE_PRIVATE)
+                    .edit().putString("partner_id", pid).apply();
+            }
         }
 
-        Log.d(TAG, "Service started. partner=" + sPartnerId + " url=" + sSupabaseUrl);
+        // Always read from SharedPreferences — works after Android restarts service too
+        partnerId = getSharedPreferences("location_prefs", MODE_PRIVATE)
+            .getString("partner_id", null);
+
+        Log.d(TAG, "Service started. partner=" + partnerId);
 
         createNotificationChannel();
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
@@ -61,7 +60,6 @@ public class LocationForegroundService extends Service {
 
     private void startLocationUpdates() {
         fusedClient = LocationServices.getFusedLocationProviderClient(this);
-
 
         LocationRequest request = new LocationRequest.Builder(
             Priority.PRIORITY_HIGH_ACCURACY, 10000L)
@@ -89,8 +87,8 @@ public class LocationForegroundService extends Service {
     }
 
     private void pushToSupabase(final Location loc) {
-        if (PartnerId == null || SUPABASE_URL == null || SUPABASE_KEY == null) {
-            Log.e(TAG, "Missing credentials — cannot push location");
+        if (partnerId == null) {
+            Log.e(TAG, "Missing partner_id — cannot push location");
             return;
         }
 
@@ -100,19 +98,17 @@ public class LocationForegroundService extends Service {
                     "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
                     .format(new Date());
 
-                // FIX 1: Add ?on_conflict=partner_id for proper upsert
-                String urlStr = sSupabaseUrl
+                String urlStr = SUPABASE_URL
                     + "/rest/v1/partner_locations"
                     + "?on_conflict=partner_id";
 
-                // FIX 2: Include reported_at in payload
                 String body = "{"
-                    + "\"partner_id\":\"" + sPartnerId + "\","
-                    + "\"latitude\":"    + loc.getLatitude()  + ","
-                    + "\"longitude\":"   + loc.getLongitude() + ","
-                    + "\"accuracy\":"    + loc.getAccuracy()  + ","
-                    + "\"speed\":"       + (loc.hasSpeed()   ? loc.getSpeed()   : 0) + ","
-                    + "\"heading\":"     + (loc.hasBearing() ? loc.getBearing() : 0) + ","
+                    + "\"partner_id\":\"" + partnerId + "\","
+                    + "\"latitude\":"     + loc.getLatitude()  + ","
+                    + "\"longitude\":"    + loc.getLongitude() + ","
+                    + "\"accuracy\":"     + loc.getAccuracy()  + ","
+                    + "\"speed\":"        + (loc.hasSpeed()    ? loc.getSpeed()   : 0) + ","
+                    + "\"heading\":"      + (loc.hasBearing()  ? loc.getBearing() : 0) + ","
                     + "\"is_online\":true,"
                     + "\"reported_at\":\"" + now + "\","
                     + "\"updated_at\":\""  + now + "\""
@@ -124,10 +120,9 @@ public class LocationForegroundService extends Service {
                 HttpURLConnection conn = (HttpURLConnection)
                     new URL(urlStr).openConnection();
                 conn.setRequestMethod("POST");
-                conn.setRequestProperty("apikey",        sSupabaseKey);
-                conn.setRequestProperty("Authorization", "Bearer " + sSupabaseKey);
+                conn.setRequestProperty("apikey",        SUPABASE_KEY);
+                conn.setRequestProperty("Authorization", "Bearer " + SUPABASE_KEY);
                 conn.setRequestProperty("Content-Type",  "application/json");
-                // FIX 3: Correct Prefer header for upsert
                 conn.setRequestProperty("Prefer",
                     "resolution=merge-duplicates,return=minimal");
                 conn.setDoOutput(true);
@@ -141,7 +136,6 @@ public class LocationForegroundService extends Service {
                 int code = conn.getResponseCode();
                 Log.d(TAG, "Supabase response code: " + code);
 
-                // Log error body if not success
                 if (code >= 300) {
                     InputStream es = conn.getErrorStream();
                     if (es != null) {
@@ -163,6 +157,41 @@ public class LocationForegroundService extends Service {
         super.onDestroy();
         if (fusedClient != null && locationCallback != null) {
             fusedClient.removeLocationUpdates(locationCallback);
+        }
+        // Mark partner offline — no updated_at so manager timer doesn't reset
+        if (partnerId != null) {
+            new Thread(() -> {
+                try {
+                    String urlStr = SUPABASE_URL
+                        + "/rest/v1/partner_locations"
+                        + "?on_conflict=partner_id";
+
+                    String body = "{"
+                        + "\"partner_id\":\"" + partnerId + "\","
+                        + "\"is_online\":false"
+                        + "}";
+
+                    HttpURLConnection conn = (HttpURLConnection)
+                        new URL(urlStr).openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("apikey", SUPABASE_KEY);
+                    conn.setRequestProperty("Authorization", "Bearer " + SUPABASE_KEY);
+                    conn.setRequestProperty("Content-Type", "application/json");
+                    conn.setRequestProperty("Prefer", "resolution=merge-duplicates,return=minimal");
+                    conn.setDoOutput(true);
+                    conn.setConnectTimeout(5000);
+                    conn.setReadTimeout(5000);
+
+                    try (OutputStream os = conn.getOutputStream()) {
+                        os.write(body.getBytes(StandardCharsets.UTF_8));
+                    }
+                    conn.getResponseCode();
+                    conn.disconnect();
+                    Log.d(TAG, "Marked partner offline");
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to mark offline", e);
+                }
+            }).start();
         }
         Log.d(TAG, "Service destroyed");
     }

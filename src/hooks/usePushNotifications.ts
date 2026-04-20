@@ -1,75 +1,49 @@
 import { useEffect } from "react";
+import { PushNotifications } from "@capacitor/push-notifications";
+import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
-
-// VAPID public key - must match the one in Supabase secrets (VAPID_PUBLIC_KEY)
-// Generate a pair with: npx web-push generate-vapid-keys
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
-
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
 
 export function usePushNotifications(partnerId: string | undefined) {
   useEffect(() => {
-    if (!partnerId || !("serviceWorker" in navigator) || !("PushManager" in window)) {
-      return;
-    }
+    if (!partnerId || !Capacitor.isNativePlatform()) return;
 
-    const registerPush = async () => {
-      try {
-        // Register service worker
-        const registration = await navigator.serviceWorker.register("/sw.js");
-        await navigator.serviceWorker.ready;
+    const register = async () => {
+      const permResult = await PushNotifications.requestPermissions();
+      if (permResult.receive !== "granted") return;
 
-        // Check if already subscribed
-        let subscription = await registration.pushManager.getSubscription();
+      await PushNotifications.register();
 
-        if (!subscription) {
-          // Request permission
-          const permission = await Notification.requestPermission();
-          if (permission !== "granted") {
-            console.log("Push notification permission denied");
-            return;
-          }
-
-          // Subscribe
-          subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as unknown as ArrayBuffer,
-          });
-        }
-
-        // Save subscription to Supabase (upsert by partner+endpoint)
-        const subJson = subscription.toJSON();
+      PushNotifications.addListener("registration", async (token) => {
+        console.log("FCM token:", token.value);
         const { error } = await supabase
-          .from("push_subscriptions")
+          .from("fcm_tokens")
           .upsert(
             {
+              token: token.value,
               partner_id: partnerId,
-              endpoint: subJson.endpoint!,
-              p256dh: subJson.keys!.p256dh!,
-              auth: subJson.keys!.auth!,
+              platform: "android",
+              updated_at: new Date().toISOString(),
             },
-            { onConflict: "partner_id,endpoint" }
+            { onConflict: "token" }
           );
+        if (error) console.error("Failed to save FCM token:", error);
+        else console.log("FCM token saved for partner:", partnerId);
+      });
 
-        if (error) {
-          console.error("Failed to save push subscription:", error);
-        } else {
-          console.log("Push subscription saved successfully");
-        }
-      } catch (err) {
-        console.error("Push registration failed:", err);
-      }
+      PushNotifications.addListener("registrationError", (err) => {
+        console.error("FCM registration error:", err);
+      });
+
+      PushNotifications.addListener("pushNotificationReceived", (notification) => {
+        console.log("Foreground notification:", notification);
+      });
+
+      PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
+        console.log("Notification tapped:", action);
+      });
     };
 
-    registerPush();
+    register();
+    return () => { PushNotifications.removeAllListeners(); };
   }, [partnerId]);
 }

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1039593034110",
+    "project_id": "khanismita-recipes",
+    "storage_bucket": "khanismita-recipes.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1039593034110:android:f1ce470be4a386b390a32f",
+        "android_client_info": {
+          "package_name": "app.lovable.a781537c1a1549c0b33081a33a63309d"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB0YRbV5HuY3dsA5BqU53pk6UDvzqnCR6E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
